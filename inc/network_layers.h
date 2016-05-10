@@ -82,5 +82,7 @@ int make_packet(udp_packet* pkt,
 void dump_packet(udp_packet* pkt, char* filename);
 void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data);
 unsigned int crc32c(unsigned char *message);
+int validated_packet(udp_packet *pkt);
+int packet_get_data_length(udp_packet *pkt);
 
 #endif

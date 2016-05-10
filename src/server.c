@@ -6,9 +6,17 @@
 #include "devices.h"
 #include "queue.h"
 #include "packet.h"
+#include <unistd.h>
+#include "tinycthread.h"
 
+typedef struct thread_context {
+	dev_context* dev;
+	FILE** f;
+	int *received_init_packet;
+	mtx_t *mutex;
+} thread_context;
 
-static void server_thread(dev_context* dev, queue* q, FILE* f);
+static void server_thread(struct thread_context* context);
 
 int setup_server(char* devlist) {
 	int i=0;
@@ -18,43 +26,62 @@ int setup_server(char* devlist) {
 	struct bpf_program fcode;
 	
 	int n_devices;
+	int received_init_packet;
 	dev_context* devices = load_devices(devlist, &n_devices);
 	
 	printf("loaded %d devices\n", n_devices);
 	printf("loaded devices are: ");
 	list_devices(devices,n_devices);
 	printf("\n");
-	/* start the capture */
-	// pcap_loop(adhandle, 0, packet_handler, NULL);
 	
+	mtx_t shared_mutex;
+	mtx_init(&shared_mutex, mtx_plain);
+	thread_context* thread_contexts = (thread_context*)malloc(sizeof(thread_context)*n_devices);
 	thrd_t *thread = (thrd_t*)malloc(sizeof(thrd_t)*n_devices);
 	for(i=0; i < n_devices; i++) {
-		thrd_create(&thread[i], (thrd_start_t)server_thread, &devices[i]);
+		thread_context* ctx = thread_contexts+i;
+		ctx->dev = devices+i;
+		ctx->received_init_packet = &received_init_packet;
+		ctx->mutex = &shared_mutex;
+		thrd_create(&thread[i], (thrd_start_t)server_thread, ctx);
 	}
 	
 	for(i=0; i < n_devices; i++) {
 		thrd_join(thread[i],0);
 	}
 	
-	// send_packet(&devices[0], MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "hehhehe");
-	
+	free(thread);
+	free(thread_contexts);
+	free_devices(devices, n_devices);
 }
 
 
-static void server_thread(dev_context* dev, queue* q, FILE* f) {
-	printf("hello from: %s\n", dev->d->name);
+void reconnect(dev_context* dev) {
+	while(!try_open_device(dev)) {
+		sleep(1);
+	}
+}
+
+static void server_thread(struct thread_context* context) {
+	dev_context* dev = context->dev;
+	
+	printf("hello from: %s\n", dev->name);
 	
 	int current_processing = 0;
 	int i;
 	
-	// implement simple receive
+	if(!dev->pcap_handle) {
+		reconnect(dev);
+		printf("connected to %s\n", dev->name);
+	}
 	
+	mtx_lock(context->mutex);
 	device_set_filter(dev, "ip and udp");
+	mtx_unlock(context->mutex);
 	
 	int num_parts;
 	int filesize;
 	char filename[100];
-	
 	
 	while(1) {
 		struct pcap_pkthdr hdr;
@@ -62,30 +89,20 @@ static void server_thread(dev_context* dev, queue* q, FILE* f) {
 		
 		if(!data) continue;
 		
+		udp_packet* pkt = (udp_packet*)data;
+		
+		if(!validated_packet(pkt)) continue;
+		
+		int data_len = packet_get_data_length(pkt);
+		
 		for(i=0; i < hdr.len; i++) {
 			printf("%0.2X ", data[i]); 
 		}
-		udp_packet* pkt = (udp_packet*)data;
 		
-		if(pkt->ip.ver_ihl != 0x45) {
-			printf("received data with ip.ver_ihl = % not supported, skipping !\n", pkt->ip.ver_ihl);
-			continue;
+		for(i=0; i < data_len; i++) {
+			printf("%c", pkt->data[i]);
 		}
 		
-		printf("\ndata on port %d is ... \n", htons(pkt->udp.dport));
-		int data_len = htons(pkt->udp.len) - sizeof(udp_header);
-		
-		Packet *mypkt = (Packet*)pkt->data;
-		
-		printf("test filesize %d\n", mypkt->intro.file_size);
-		
-		if(data_len < UDP_PACKET_DATA_SIZE) {	
-			for(i=0; i < data_len; i++) {
-				printf("%c", pkt->data[i]);
-			}
-		} else {
-			printf("couldn't display data with size %d\n", data_len);
-		}
 		printf("\n---------\n");
 	}
 	

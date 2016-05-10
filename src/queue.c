@@ -35,6 +35,10 @@ void queue_destroy(queue* q) {
 	free(q);
 }
 
+int queue_num_elements(queue* q) {
+	return q->num_elements;
+}
+
 void enqueue(queue* q, queue_val val) {
 	queue_el* el = (queue_el*)malloc(sizeof(queue_el));
 	el->val = val;

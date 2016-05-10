@@ -9,7 +9,21 @@ TODO:
 	+ make simple send_packet function (auto detect source mac, source ip)
 	+ checksum function (crc32)
 	+ test receiving packets (pcap_loop or pcap_next)
-	- design packets for transfer
+	+ design packets for transfer
+	+ validate_packet (checking whether packet is valid and can be processed) network_layers.c
+		- checksum validations
+	+ try_open_device devices.c
 
+main:
 	- server
 	- client
+
+
+plan:
+	+ device name wish list with given dmac, dip, dport
+	- when device is disconnected use sleep with loop to periodically check whether
+		it can be opened
+	+ shared thread context { mutex, FILE **f, ... }
+	+ specific thread context
+
+	

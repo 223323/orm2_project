@@ -10,6 +10,7 @@
 #include <sys/ioctl.h>
 #include <assert.h>
 #include <stdlib.h>
+#include "packet.h"
 
 #define debug(x) x
 
@@ -240,6 +241,24 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 	 
 	pcap_sendpacket(dev->pcap_handle, (const u_char*)&pkt, pkt_len);
 	
+}
+
+int validated_packet(udp_packet *pkt) {
+	if(pkt->ip.ver_ihl != 0x45) {
+		printf("received data with ip.ver_ihl = % not supported, skipping !\n", pkt->ip.ver_ihl);
+		return 0;
+	}
+	int data_len = packet_get_data_length(pkt);
+	Packet *mypkt = (Packet*)pkt->data;
+	if (!(data_len >= 8 && mypkt->signature == SIGNATURE && data_len <= UDP_PACKET_DATA_SIZE)) return 0;
+	
+	// TODO: validate checksums
+	
+	return 1;
+}
+
+int packet_get_data_length(udp_packet *pkt) {
+	return htons(pkt->udp.len) - sizeof(udp_header);
 }
 
 // http://www.hackersdelight.org/hdcodetxt/crc.c.txt

@@ -4,7 +4,8 @@
 #include <stdlib.h>
 #include "network_layers.h"
 
-pcap_if_t *alldevs;
+static pcap_if_t *alldevs = 0;
+static int n_devices_in_use = 0;
 
 pcap_if_t* get_alldevs() { return alldevs; }
 
@@ -12,6 +13,7 @@ void list_devices(dev_context* devs, int n_devices) {
 	pcap_if_t* d;
 	int i;
 	for(i=0; i < n_devices; i++) {
+		if(!devs[i].pcap_handle) continue;
 		printf("%s", devs[i].d->name);
 		if(i != n_devices - 1)
 			printf(", ");
@@ -41,8 +43,9 @@ void list_all_devices() {
 }
 
 void device_set_filter(dev_context *dev, char* filter) {
+	if(!dev->pcap_handle) return;
 	struct bpf_program fcode;
-	u_int netmask;
+	bpf_u_int32 netmask;
 	
 	#ifdef _WIN32
 		if(dev->d->addresses != NULL)
@@ -62,7 +65,6 @@ void device_set_filter(dev_context *dev, char* filter) {
 	if (pcap_compile(dev->pcap_handle, &fcode, filter, 1, netmask) <0 )
 	{
 		fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
-		pcap_close(dev->pcap_handle);
 		return;
 	}
 	
@@ -70,8 +72,52 @@ void device_set_filter(dev_context *dev, char* filter) {
 	if (pcap_setfilter(dev->pcap_handle, &fcode)<0)
 	{
 		fprintf(stderr,"\nError setting the filter.\n");
-		pcap_close(dev->pcap_handle);
 		return;
+	}
+}
+
+int try_open_device(dev_context* dev) {
+	char errbuf[PCAP_ERRBUF_SIZE];
+	
+	if(!alldevs) {
+		if(pcap_findalldevs(&alldevs, errbuf) == -1) {
+			fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
+			exit(1);
+		}
+	}
+	
+	pcap_if_t* d;
+	pcap_t* h;
+	for(d=alldevs; d; d=d->next) {
+		if(!strcmp(d->name, dev->name)) {
+			
+			if ((h = pcap_open_live(d->name, 65536,1,1000,errbuf)) == NULL) {
+				fprintf(stderr,"\nUnable to open the adapter. %s is not supported by libpcap, skipping !\n", d->name);
+				break;
+			}
+			
+			if(pcap_datalink(h) != DLT_EN10MB) {
+				fprintf(stderr,"\n%s is not using ethernet stack, skipping !\n", d->name);
+				pcap_close(h);
+				break;
+			}
+			
+			dev->pcap_handle = h;
+			dev->d = d;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+
+void free_devices(dev_context* dev, int n_devices) {
+	free(dev);
+	n_devices_in_use -= n_devices;
+	if(n_devices_in_use <= 0) {
+		pcap_freealldevs(alldevs);
+		alldevs = 0;
+		n_devices_in_use = 0;
 	}
 }
 
@@ -100,42 +146,22 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 	// iterate devices in array
 	strcpy(devs,devlist);
 	for(i=0,t=strtok(devs, ","); t && i < num_devs; t=strtok(0, ","), i++) {
-		
-		pcap_if_t *d;
-		pcap_t *adhandle;
+
 		u_int netmask;
 		
+		dc[i].pcap_handle = 0;
+		strcpy(dc[i].name, t);
 		
-		for(d=alldevs; d; d=d->next) {
-			if(!strcmp(d->name, t)) {
-				break;
-			}
-		}
-		
-		if(!d) {
-			printf("ERROR: interface %s not found, skipping !\n", d->name);
+		if(!try_open_device(&dc[i])) {
+			printf("warning: interface %s not found\n", t);
 			continue;
 		}
 		
-		if ((adhandle = pcap_open_live(d->name, 65536,1,1000,errbuf)) == NULL) {
-			fprintf(stderr,"\nUnable to open the adapter. %s is not supported by libpcap, skipping !\n", d->name);
-			continue;
-		}
-		
-		if(pcap_datalink(adhandle) != DLT_EN10MB) {
-			fprintf(stderr,"\n%s is not using ethernet stack, skipping !\n", d->name);
-			continue;
-		}
-		
-		
-		dev_context *c = &dc[loaded_devices++];
-		
-		c->pcap_handle = adhandle;
-		c->d = d;
+		loaded_devices++;
 	}
 	
 	free(devs);
-	*n_devices = loaded_devices;
+	*n_devices = num_devs;
 	
 	return dc;
 }

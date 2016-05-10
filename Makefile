@@ -16,3 +16,5 @@ all:
 	gcc $(src) -g -o $(exec) $(inc) $(lib)
 
 
+lines:
+	wc -l `find src ! -name "tiny*" ! -name "src"`
