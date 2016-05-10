@@ -22,7 +22,7 @@
 #include <string.h>
 #include <assert.h>
 #include <pcap.h>
-#include "network_layers.h"
+#include "devices.h"
 
 
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
@@ -32,7 +32,7 @@ int setup_server(char *devlist); // server.c
 int setup_client(char *devlist, char *dmac, char *dip, int dport, char *transfer_file); // client.c
 
 void print_help() {
-	printf("./project client dev1,...,devn dmac dip dport input_file\n");
+	printf("./project client dev1,...,devn dmac,... dip,... dport,... input_file\n");
 	printf("./project server dev1,...,devn output_file\n");
 	printf("./project listen dev bpf_filter\n");
 	printf("./project list\n");
@@ -62,18 +62,7 @@ int main(int argc, char *argv[])
 		int i_dest_port = atoi(argv[5]);
 		return setup_client(devlist, dest_mac, dest_ip, i_dest_port, transfer_file);
 	} else if(!strcmp(argv[1],"list") && argc == 2) {
-		int i;
-		pcap_if_t *alldevs;
-		pcap_if_t *d;
-		for(d=alldevs; d; d=d->next)
-		{
-			printf("%d. %s", ++i, d->name);
-			if (d->description)
-				printf(" (%s)\n", d->description);
-			else
-				printf(" (No description available)\n");
-		}
-		pcap_freealldevs(alldevs);
+		list_all_devices();
 		return -1;
 		
 	} else if(!strcmp(argv[1],"listen") && argc == 4) {

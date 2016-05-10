@@ -8,9 +8,40 @@ pcap_if_t *alldevs;
 
 pcap_if_t* get_alldevs() { return alldevs; }
 
+void list_devices(dev_context* devs, int n_devices) {
+	pcap_if_t* d;
+	int i;
+	for(i=0; i < n_devices; i++) {
+		printf("%s", devs[i].d->name);
+		if(i != n_devices - 1)
+			printf(", ");
+	}
+}
+
+void list_all_devices() {
+	pcap_if_t *alldevs;
+	int i = 0;
+	
+	char errbuf[PCAP_ERRBUF_SIZE];
+	if(pcap_findalldevs(&alldevs, errbuf) == -1) {
+		fprintf(stderr,"Error in pcap_findalldevs: %s\n", errbuf);
+		exit(1);
+	}
+	
+	pcap_if_t *d;
+	for(d=alldevs; d; d=d->next)
+	{
+		printf("%d. %s", ++i, d->name);
+		if (d->description)
+			printf(" (%s)\n", d->description);
+		else
+			printf(" (No description available)\n");
+	}
+	pcap_freealldevs(alldevs);
+}
+
 dev_context* load_devices(char* devlist, int *n_devices) {
 
-	
 	int i;
 	char* t;
 	char errbuf[PCAP_ERRBUF_SIZE];
@@ -26,17 +57,20 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 	strcpy(devs,devlist);
 	
 	// count devices in array
-	for(t=strtok(devs, ","); t; t=strtok(0, ","), num_devs++);
+	for(t=strtok(devs, ","); t; t=strtok(NULL, ","), num_devs++);
 	
 	dev_context* dc = (dev_context*)malloc(sizeof(dev_context)*num_devs);
 	
+	
 	int loaded_devices = 0;
 	// iterate devices in array
-	for(i=0,t=strtok(devs, ","); i < num_devs; t=strtok(0, ","), i++) {
+	strcpy(devs,devlist);
+	for(i=0,t=strtok(devs, ","); t && i < num_devs; t=strtok(0, ","), i++) {
 		
 		pcap_if_t *d;
 		pcap_t *adhandle;
 		u_int netmask;
+		
 		
 		for(d=alldevs; d; d=d->next) {
 			if(!strcmp(d->name, t)) {

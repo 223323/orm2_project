@@ -1,5 +1,6 @@
 #include "network_layers.h"
-
+#include "devices.h"
+#include <pcap.h>
 #include <string.h> // strtok
 
 // get mac
@@ -8,8 +9,9 @@
 #include <net/if.h>
 #include <sys/ioctl.h>
 #include <assert.h>
+#include <stdlib.h>
 
-#define debug(x) printf(x)
+#define debug(x) x
 
 void calculate_ip_header_crc(ip_header* hdr) {
 	u_short* s = (u_short*)hdr;
@@ -133,7 +135,7 @@ void get_mac_address(char* devname, mac_address* addr) {
 // }
 
 
-void make_packet(udp_packet* pkt, 
+int make_packet(udp_packet* pkt, 
 				mac_address smac,
 				mac_address dmac,
 				ip_address sip,
@@ -142,6 +144,7 @@ void make_packet(udp_packet* pkt,
 				int dport,
 				char* pkt_data) {
 
+	int packet_length;
 	int data_length = strlen(pkt_data);
 	
 	eth_header *eth_hdr = &pkt->eth;
@@ -152,6 +155,7 @@ void make_packet(udp_packet* pkt,
 	eth_hdr->proto_type = htons(0x0800);
 	
 	assert(sizeof(eth_header) == 14);
+	packet_length = sizeof(eth_header);
 	
 	ip_header *ip_hdr = &pkt->ip;
 	ip_hdr->ver_ihl = 0x46; // version + header length
@@ -167,13 +171,17 @@ void make_packet(udp_packet* pkt,
 	ip_hdr->op_pad = 0;
 	// ip_hdr->crc = 0;
 	
+	assert(sizeof(ip_header) == 24);
 	strcpy(pkt->data, pkt_data);
 	
-	udp_header* udp_hdr = &pkt->udp;	
+	udp_header* udp_hdr = &pkt->udp;
+	
+	assert((long)&pkt->udp - (long)&pkt->eth == sizeof(ip_header) + sizeof(eth_header));
 	
 	udp_hdr->sport = htons(sport); // optional (0 if not used)
 	udp_hdr->dport = htons(dport);
 	
+	assert(sizeof(udp_header) == 8);
 	short udp_len = sizeof(udp_header) + data_length;
 	udp_hdr->len = htons(udp_len);
 	
@@ -185,9 +193,69 @@ void make_packet(udp_packet* pkt,
 	udp_hdr->crc = htons(udp_sum);
 	
 	
-	ip_hdr->tlen = sizeof(ip_header) + sizeof(udp_header) + (long)data_length;
+	ip_hdr->tlen = sizeof(ip_header) + sizeof(udp_header) + data_length;
+	
 	ip_hdr->tlen = htons(ip_hdr->tlen);
 	
 	debug("crc ip\n");
 	calculate_ip_header_crc(ip_hdr);
+	
+	packet_length = sizeof(eth_header) + sizeof(ip_header) + sizeof(udp_header) + data_length;
+	return packet_length;
+}
+
+void dump_packet(udp_packet* pkt, char* filename) {
+	int pkt_len = htons( pkt->ip.tlen ) + sizeof(eth_header);
+	FILE* f = fopen("dump.bin", "w");
+	fwrite(pkt, 1, pkt_len, f);
+	fclose(f);
+}
+
+void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data) {
+	debug(printf("getting ip address ... \n"));
+	int i;
+	// get source ip addr
+	ip_address ip_addr;
+	struct pcap_addr* adr;
+	for(adr = dev->d->addresses; adr; adr=adr->next) {
+		struct sockaddr* addr = adr->addr;
+		if(addr->sa_family == AF_INET) {
+			char* ip = addr->sa_data+2;
+			for(i=0; i < 4; i++) {
+				ip_addr.bytes[i] = ip[i];
+			}
+			break;
+		}
+	}
+	
+	debug(
+		printf("ip address is: ");
+		for(i=0; i < 4; i++) {
+			printf("%d", ip_addr.bytes[i]);
+			if(i != 3)
+				printf(".");
+		}
+	)
+	
+	mac_address mac_addr;
+	debug(printf("\ngetting mac address ... "));
+	get_mac_address(dev->d->name, &mac_addr);
+	debug(
+		printf("\nmac address is: ");
+		for(i=0; i < 6; i++) {
+			printf("%0.2x", mac_addr.bytes[i]);
+			if(i != 5)
+				printf(":");
+		}
+	)
+	printf("\n");
+	
+	debug(printf("sending packet ...\n"));
+	
+	udp_packet pkt;
+	int pkt_len = make_packet(&pkt, mac_addr, dmac, ip_addr, dip, rand()%5000+1024, dport, data);
+	
+	 
+	pcap_sendpacket(dev->pcap_handle, (const u_char*)&pkt, pkt_len);
+	
 }

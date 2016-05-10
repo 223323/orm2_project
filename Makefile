@@ -8,7 +8,7 @@ src :=	\
 	src/queue.c				\
 	src/tinycthread.c
 	
-lib := -lpcap -lpthread
+lib := -lpcap -lpthread -lrt
 exec := project
 inc := -Iinc
 

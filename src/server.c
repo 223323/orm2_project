@@ -4,7 +4,14 @@
 #include <stdlib.h>
 #include "network_layers.h"
 #include "devices.h"
+#include "queue.h"
 
+
+void server_thread(dev_context* dev) {
+	printf("hello from: %s\n", dev->d->name);
+	
+	
+}
 
 int setup_server(char* devlist) {
 	int i=0;
@@ -17,12 +24,24 @@ int setup_server(char* devlist) {
 	dev_context* devices = load_devices(devlist, &n_devices);
 	
 	printf("loaded %d devices\n", n_devices);
+	printf("loaded devices are: ");
+	list_devices(devices,n_devices);
+	printf("\n");
 	/* start the capture */
 	// pcap_loop(adhandle, 0, packet_handler, NULL);
 	
+	thrd_t *thread = (thrd_t*)malloc(sizeof(thrd_t)*n_devices);
+	for(i=0; i < n_devices; i++) {
+		thrd_create(&thread[i], (thrd_start_t)server_thread, &devices[i]);
+	}
+	
+	// for(i=0; i < n_devices; i++) {
+		// thrd_join(thread[i],0);
+	// }
 	
 	
 	// ----------- building packet
+	
 	/*
 	int pkt_len = 0;
 	u_char pkt_buff[200];
@@ -48,7 +67,7 @@ int setup_server(char* devlist) {
 		ip_hdr->ttl = 64;
 		ip_hdr->proto = 17;
 		
-		ip_hdr->saddr = IP_ADDR(10.0.0.1);
+		ip_hdr->saddr = IP_ADDR(10.0.0.49);
 		ip_hdr->daddr = IP_ADDR(10.0.0.1);
 		ip_hdr->op_pad = 0;
 		// ip_hdr->crc = 0;
@@ -90,22 +109,35 @@ int setup_server(char* devlist) {
 		fwrite(pkt_buff, 1, pkt_len, f);
 		fclose(f);
 	}
+	*/
 	// ---------------
 	
 	// ------- using udp packet struct
+	udp_packet pkt;
+	int pkt_len = make_packet(&pkt, 
+		MAC(00:0f:60:06:23:0a),
+		MAC(00:90:a2:cd:d4:49),
+		IP_ADDR(10.0.0.49),
+		IP_ADDR(10.0.0.1),
+		2000,
+		5000, "nikolice bre :D\n");
 	// -------
 	
+	dump_packet(&pkt, "dump.bin");
 	
-	printf("pcap_sendpacket\n");
+	send_packet(&devices[0], MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "hehhehe");
 	
-	int res;
-	res = pcap_sendpacket(adhandle1, pkt_buff, pkt_len);
+	// printf("pcap_sendpacket\n");
 	
-	if(res == 0) {
-		printf("Success !!\n");
-	} else {
-		pcap_perror(adhandle1, "sendpacket");
-		printf("FAIL\n");
-	}
-	*/
+	// int res;
+	// res = pcap_sendpacket(devices[0].pcap_handle, pkt_buff, pkt_len);
+	// res = pcap_sendpacket(devices[0].pcap_handle, (const u_char*)&pkt, pkt_len);
+	
+	// if(res == 0) {
+		// printf("Success !!\n");
+	// } else {
+		// pcap_perror(devices[0].pcap_handle, "sendpacket");
+		// printf("FAIL\n");
+	// }
+	
 }

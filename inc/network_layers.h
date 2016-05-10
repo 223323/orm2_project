@@ -3,6 +3,7 @@
 
 #include <pcap.h>
 #include <arpa/inet.h>
+#include "devices.h"
 
 /* 4 bytes IP address */
 typedef struct ip_address
@@ -16,9 +17,10 @@ typedef struct ip_address
 typedef struct mac_address
 {
 	u_char bytes[6];
-} mac_address;
+} __attribute__((packed)) mac_address;
 
 /* IPv4 header */
+
 typedef struct ip_header
 {
 	u_char	ver_ihl;		// Version (4 bits) + Internet header length (4 bits)
@@ -41,13 +43,13 @@ typedef struct udp_header
 	u_short dport;			// Destination port
 	u_short len;			// Datagram length
 	u_short crc;			// Checksum
-} udp_header;
+} __attribute__((packed)) udp_header;
 
 typedef struct eth_header {
 	mac_address dmac;
 	mac_address smac;
 	u_short proto_type;
-} eth_header; 
+} __attribute__((packed)) eth_header; 
 
 u_short udp_sum_calc(u_short len_udp, u_char src_addr[], u_char dest_addr[], int padding, u_char buff[]);
 mac_address str2mac(const char* mac_str);
@@ -63,11 +65,11 @@ typedef struct udp_packet {
 	ip_header ip;
 	udp_header udp;
 	u_char data[1500];
-} udp_packet;
+} __attribute__((packed)) udp_packet;
 
 void get_mac_address(char* devname, mac_address* addr);
 
-void make_packet(udp_packet* pkt, 
+int make_packet(udp_packet* pkt, 
 				mac_address smac,
 				mac_address dmac,
 				ip_address sip,
@@ -75,5 +77,7 @@ void make_packet(udp_packet* pkt,
 				int sport,
 				int dport,
 				char* pkt_data);
+void dump_packet(udp_packet* pkt, char* filename);
+void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data);
 
 #endif

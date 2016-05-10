@@ -2,6 +2,9 @@ TODO:
 	- client
 	- server
 	+ data queue
-	- data queue multi threaded
-	- posix multi threading
+	+ data queue multi threaded
+	+ tinycthread multi threading
 	+ listen
+	+ test sending packet by make_packet
+	+ make simple send_packet function (auto detect source mac, source ip)
+	- checksum function

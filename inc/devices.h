@@ -1,3 +1,6 @@
+#ifndef DEVICES_H
+#define DEVICES_H
+
 #include <pcap.h>
 typedef struct _dev_context {
 	int processing_block_num;
@@ -8,4 +11,8 @@ typedef struct _dev_context {
 
 dev_context* load_devices(char* devlist, int *n_devices);
 pcap_if_t* get_alldevs();
+void list_devices(dev_context* devs, int n_devices);
+void list_all_devices();
 
+
+#endif
