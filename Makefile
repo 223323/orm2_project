@@ -14,4 +14,5 @@ inc := -Iinc
 
 all:
 	gcc $(src) -g -o $(exec) $(inc) $(lib)
-	
+
+

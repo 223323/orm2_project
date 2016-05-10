@@ -40,6 +40,41 @@ void list_all_devices() {
 	pcap_freealldevs(alldevs);
 }
 
+void device_set_filter(dev_context *dev, char* filter) {
+	struct bpf_program fcode;
+	u_int netmask;
+	
+	#ifdef _WIN32
+		if(dev->d->addresses != NULL)
+			/* Retrieve the mask of the first address of the interface */
+			netmask=((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.S_un.S_addr;
+		else
+			/* If the interface is without addresses we suppose to be in a C class network */
+			netmask=0xffffff;
+	#else
+		if (!dev->d->addresses->netmask)
+			netmask = 0;
+		else
+			netmask = ((struct sockaddr_in *)(dev->d->addresses->netmask))->sin_addr.s_addr;
+	#endif
+	
+	//compile the filter
+	if (pcap_compile(dev->pcap_handle, &fcode, filter, 1, netmask) <0 )
+	{
+		fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
+		pcap_close(dev->pcap_handle);
+		return;
+	}
+	
+	//set the filter
+	if (pcap_setfilter(dev->pcap_handle, &fcode)<0)
+	{
+		fprintf(stderr,"\nError setting the filter.\n");
+		pcap_close(dev->pcap_handle);
+		return;
+	}
+}
+
 dev_context* load_devices(char* devlist, int *n_devices) {
 
 	int i;
@@ -60,7 +95,6 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 	for(t=strtok(devs, ","); t; t=strtok(NULL, ","), num_devs++);
 	
 	dev_context* dc = (dev_context*)malloc(sizeof(dev_context)*num_devs);
-	
 	
 	int loaded_devices = 0;
 	// iterate devices in array
@@ -94,44 +128,10 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 		}
 		
 		
-		#ifdef _WIN32
-			if(d->addresses != NULL)
-				/* Retrieve the mask of the first address of the interface */
-				netmask=((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.S_un.S_addr;
-			else
-				/* If the interface is without addresses we suppose to be in a C class network */
-				netmask=0xffffff;
-		#else
-			if (!d->addresses->netmask)
-				netmask = 0;
-			else
-				netmask = ((struct sockaddr_in *)(d->addresses->netmask))->sin_addr.s_addr;
-		#endif
-		
-		/*
-		//compile the filter
-		if (pcap_compile(adhandle, &fcode, packet_filter, 1, netmask) <0 )
-		{
-			fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
-			pcap_close(adhandle);
-			continue;
-		}
-		
-		//set the filter
-		if (pcap_setfilter(adhandle, &fcode)<0)
-		{
-			fprintf(stderr,"\nError setting the filter.\n");
-			pcap_close(adhandle);
-			continue;
-		}
-		*/
-		
 		dev_context *c = &dc[loaded_devices++];
 		
-		c->processing_block_num = -1;
 		c->pcap_handle = adhandle;
 		c->d = d;
-		c->last_id = -1;
 	}
 	
 	free(devs);

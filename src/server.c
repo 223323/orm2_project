@@ -5,13 +5,10 @@
 #include "network_layers.h"
 #include "devices.h"
 #include "queue.h"
+#include "packet.h"
 
 
-void server_thread(dev_context* dev) {
-	printf("hello from: %s\n", dev->d->name);
-	
-	
-}
+static void server_thread(dev_context* dev, queue* q, FILE* f);
 
 int setup_server(char* devlist) {
 	int i=0;
@@ -35,109 +32,61 @@ int setup_server(char* devlist) {
 		thrd_create(&thread[i], (thrd_start_t)server_thread, &devices[i]);
 	}
 	
-	// for(i=0; i < n_devices; i++) {
-		// thrd_join(thread[i],0);
-	// }
-	
-	
-	// ----------- building packet
-	
-	/*
-	int pkt_len = 0;
-	u_char pkt_buff[200];
-	u_char pkt_data[200];
-	{
-		
-		eth_header *eth_hdr = (eth_header*)pkt_buff;
-
-		eth_hdr->smac = MAC(00:0f:60:06:23:0a);
-		eth_hdr->dmac = MAC(00:90:a2:cd:d4:49);
-
-		eth_hdr->proto_type = htons(0x0800);
-		
-		assert(sizeof(eth_header) == 14);
-		pkt_len += sizeof(eth_header);
-		
-		ip_header *ip_hdr = (ip_header*)(pkt_buff + pkt_len);
-		ip_hdr->ver_ihl = 0x46; // version + header length
-		ip_hdr->tos = 0x00;
-		ip_hdr->tlen = sizeof(ip_header); // total length (header + encapsulated data)
-		ip_hdr->identification = htons(4556);
-		ip_hdr->flags_fo = htons(0x4000);
-		ip_hdr->ttl = 64;
-		ip_hdr->proto = 17;
-		
-		ip_hdr->saddr = IP_ADDR(10.0.0.49);
-		ip_hdr->daddr = IP_ADDR(10.0.0.1);
-		ip_hdr->op_pad = 0;
-		// ip_hdr->crc = 0;
-		
-		// packet data to send
-		strcpy(pkt_data, "Hello World\n");
-		int pkt_data_len = strlen(pkt_data);
-		
-		pkt_len += sizeof(ip_header);
-		
-		udp_header* udp_hdr = (udp_header*)(pkt_buff + pkt_len);
-		
-		
-		udp_hdr->sport = htons(2000); // optional (0 if not used)
-		udp_hdr->dport = htons(5000);
-		
-		short udp_len = sizeof(udp_header) + strlen(pkt_data);
-		udp_hdr->len = htons(udp_len);
-		
-		udp_hdr->crc = 0;
-		pkt_len += sizeof(udp_header);
-		strcpy(pkt_buff+pkt_len, pkt_data);
-		printf("crc udp\n");
-		u_short udp_sum = udp_sum_calc(udp_len, (u_char*)&(ip_hdr->saddr), 
-			(u_char*)&(ip_hdr->daddr), udp_len, (u_char*)udp_hdr);
-		udp_hdr->crc = htons(udp_sum);
-		
-		
-		pkt_len += pkt_data_len;
-		ip_hdr->tlen = (long)pkt_buff + (long)pkt_len - (long)ip_hdr;
-		ip_hdr->tlen = htons(ip_hdr->tlen);
-		
-		printf("crc ip\n");
-		calculate_ip_header_crc(ip_hdr);
-
-		printf("writing file\n");
-		
-		FILE* f = fopen("dump.bin", "w");
-		fwrite(pkt_buff, 1, pkt_len, f);
-		fclose(f);
+	for(i=0; i < n_devices; i++) {
+		thrd_join(thread[i],0);
 	}
-	*/
-	// ---------------
 	
-	// ------- using udp packet struct
-	udp_packet pkt;
-	int pkt_len = make_packet(&pkt, 
-		MAC(00:0f:60:06:23:0a),
-		MAC(00:90:a2:cd:d4:49),
-		IP_ADDR(10.0.0.49),
-		IP_ADDR(10.0.0.1),
-		2000,
-		5000, "nikolice bre :D\n");
-	// -------
+	// send_packet(&devices[0], MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "hehhehe");
 	
-	dump_packet(&pkt, "dump.bin");
+}
+
+
+static void server_thread(dev_context* dev, queue* q, FILE* f) {
+	printf("hello from: %s\n", dev->d->name);
 	
-	send_packet(&devices[0], MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "hehhehe");
+	int current_processing = 0;
+	int i;
 	
-	// printf("pcap_sendpacket\n");
+	// implement simple receive
 	
-	// int res;
-	// res = pcap_sendpacket(devices[0].pcap_handle, pkt_buff, pkt_len);
-	// res = pcap_sendpacket(devices[0].pcap_handle, (const u_char*)&pkt, pkt_len);
+	device_set_filter(dev, "ip and udp");
 	
-	// if(res == 0) {
-		// printf("Success !!\n");
-	// } else {
-		// pcap_perror(devices[0].pcap_handle, "sendpacket");
-		// printf("FAIL\n");
-	// }
+	int num_parts;
+	int filesize;
+	char filename[100];
+	
+	
+	while(1) {
+		struct pcap_pkthdr hdr;
+		const u_char * data = pcap_next(dev->pcap_handle, &hdr);
+		
+		if(!data) continue;
+		
+		for(i=0; i < hdr.len; i++) {
+			printf("%0.2X ", data[i]); 
+		}
+		udp_packet* pkt = (udp_packet*)data;
+		
+		if(pkt->ip.ver_ihl != 0x45) {
+			printf("received data with ip.ver_ihl = % not supported, skipping !\n", pkt->ip.ver_ihl);
+			continue;
+		}
+		
+		printf("\ndata on port %d is ... \n", htons(pkt->udp.dport));
+		int data_len = htons(pkt->udp.len) - sizeof(udp_header);
+		
+		Packet *mypkt = (Packet*)pkt->data;
+		
+		printf("test filesize %d\n", mypkt->intro.file_size);
+		
+		if(data_len < UDP_PACKET_DATA_SIZE) {	
+			for(i=0; i < data_len; i++) {
+				printf("%c", pkt->data[i]);
+			}
+		} else {
+			printf("couldn't display data with size %d\n", data_len);
+		}
+		printf("\n---------\n");
+	}
 	
 }

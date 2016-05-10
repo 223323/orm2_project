@@ -1,10 +1,15 @@
 TODO:
-	- client
-	- server
+	- client (basic sending packets)
+	- server (basic receiving packets)
 	+ data queue
 	+ data queue multi threaded
 	+ tinycthread multi threading
 	+ listen
 	+ test sending packet by make_packet
 	+ make simple send_packet function (auto detect source mac, source ip)
-	- checksum function
+	+ checksum function (crc32)
+	+ test receiving packets (pcap_loop or pcap_next)
+	- design packets for transfer
+
+	- server
+	- client

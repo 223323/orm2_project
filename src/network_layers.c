@@ -117,24 +117,6 @@ void get_mac_address(char* devname, mac_address* addr) {
 	close(s);
 }
 
-// ip_address str2ip(const char* ip_str) {
-	// int i=0;
-	// ip_address ip_addr;
-	// char m[50];
-	// strcpy(m,ip_str);
-	// const char *tok = strtok(m, ".");
-	// do {
-		// u_char byte = 0;
-		// while(*tok) {
-			// byte *= 10;
-			// byte += *tok++ - '0';
-		// }
-		// ip_addr.bytes[i++] = byte;
-	// } while((tok = strtok(NULL, ".")) && i < 4);
-	// return ip_addr;
-// }
-
-
 int make_packet(udp_packet* pkt, 
 				mac_address smac,
 				mac_address dmac,
@@ -158,7 +140,7 @@ int make_packet(udp_packet* pkt,
 	packet_length = sizeof(eth_header);
 	
 	ip_header *ip_hdr = &pkt->ip;
-	ip_hdr->ver_ihl = 0x46; // version + header length
+	ip_hdr->ver_ihl = 0x45; // version + header length
 	ip_hdr->tos = 0x00;
 	ip_hdr->tlen = sizeof(ip_header); // total length (header + encapsulated data)
 	ip_hdr->identification = htons(4556);
@@ -168,7 +150,7 @@ int make_packet(udp_packet* pkt,
 	
 	ip_hdr->saddr = sip;
 	ip_hdr->daddr = dip;
-	ip_hdr->op_pad = 0;
+	// ip_hdr->op_pad = 0;
 	// ip_hdr->crc = 0;
 	
 	assert(sizeof(ip_header) == 24);
@@ -187,7 +169,7 @@ int make_packet(udp_packet* pkt,
 	
 	udp_hdr->crc = 0;
 
-	debug("crc udp\n");
+	debug(printf("crc udp\n"));
 	u_short udp_sum = udp_sum_calc(udp_len, (u_char*)&(ip_hdr->saddr), 
 		(u_char*)&(ip_hdr->daddr), udp_len, (u_char*)udp_hdr);
 	udp_hdr->crc = htons(udp_sum);
@@ -197,7 +179,7 @@ int make_packet(udp_packet* pkt,
 	
 	ip_hdr->tlen = htons(ip_hdr->tlen);
 	
-	debug("crc ip\n");
+	debug(printf("crc ip\n"));
 	calculate_ip_header_crc(ip_hdr);
 	
 	packet_length = sizeof(eth_header) + sizeof(ip_header) + sizeof(udp_header) + data_length;
@@ -258,4 +240,34 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 	 
 	pcap_sendpacket(dev->pcap_handle, (const u_char*)&pkt, pkt_len);
 	
+}
+
+// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+unsigned int crc32c(unsigned char *message) {
+   int i, j;
+   unsigned int byte, crc, mask;
+   static unsigned int table[256];
+
+   /* Set up the table, if necessary. */
+
+   if (table[1] == 0) {
+      for (byte = 0; byte <= 255; byte++) {
+         crc = byte;
+         for (j = 7; j >= 0; j--) {    // Do eight times.
+            mask = -(crc & 1);
+            crc = (crc >> 1) ^ (0xEDB88320 & mask);
+         }
+         table[byte] = crc;
+      }
+   }
+
+   /* Through with table setup, now calculate the CRC. */
+
+   i = 0;
+   crc = 0xFFFFFFFF;
+   while ((byte = message[i]) != 0) {
+      crc = (crc >> 8) ^ table[(crc ^ byte) & 0xFF];
+      i = i + 1;
+   }
+   return ~crc;
 }

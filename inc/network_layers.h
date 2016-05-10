@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include "devices.h"
 
+#define UDP_PACKET_DATA_SIZE 1500
+
 /* 4 bytes IP address */
 typedef struct ip_address
 {
@@ -33,7 +35,7 @@ typedef struct ip_header
 	u_short crc;			// Header checksum
 	ip_address	saddr;		// Source address
 	ip_address	daddr;		// Destination address
-	u_int	op_pad;			// Option + Padding
+	// u_int	op_pad;			// Option + Padding
 } ip_header;
 
 /* UDP header*/
@@ -64,7 +66,7 @@ typedef struct udp_packet {
 	eth_header eth;
 	ip_header ip;
 	udp_header udp;
-	u_char data[1500];
+	u_char data[UDP_PACKET_DATA_SIZE];
 } __attribute__((packed)) udp_packet;
 
 void get_mac_address(char* devname, mac_address* addr);
@@ -79,5 +81,6 @@ int make_packet(udp_packet* pkt,
 				char* pkt_data);
 void dump_packet(udp_packet* pkt, char* filename);
 void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data);
+unsigned int crc32c(unsigned char *message);
 
 #endif

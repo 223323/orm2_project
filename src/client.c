@@ -17,7 +17,5 @@ int setup_client(char *devlist, char *dmac, char *dip, int dport, char *transfer
 	for(i=0; i < n_devices; i++) {
 		
 		thrd_create(&thread[i], (thrd_start_t)client_thread, &devices[i]);
-		thrd_detach(thread[i]);
-		
 	}
 }
