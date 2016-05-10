@@ -1,3 +1,12 @@
+src :=	\
+	project.c 			\
+	network_layers.c    \
+	server.c            \
+	client.c            \
+	listen.c            \
+	devices.c           \
+	queue.c
+
 all:
-	gcc project.c network_layers.c server.c client.c listen.c devices.c -g -o project -lpcap
+	gcc $(src) -g -o project -lpcap
 	

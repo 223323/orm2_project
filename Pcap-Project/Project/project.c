@@ -36,13 +36,16 @@ void print_help() {
 	printf("./project server dev1,...,devn output_file\n");
 	printf("./project listen dev bpf_filter\n");
 	printf("./project list\n");
+	printf("./project test\n");
 	exit(-1);
 }
 
+#include "queue.h"
+
+void test();
+
 int main(int argc, char *argv[])
 {
-	
-	int i;
 	
 	if(argc <= 1) print_help();
 	if(!strcmp(argv[1], "server") && argc == 3) {
@@ -59,7 +62,7 @@ int main(int argc, char *argv[])
 		int i_dest_port = atoi(argv[5]);
 		return setup_client(devlist, dest_mac, dest_ip, i_dest_port, transfer_file);
 	} else if(!strcmp(argv[1],"list") && argc == 2) {
-		
+		int i;
 		pcap_if_t *alldevs;
 		pcap_if_t *d;
 		for(d=alldevs; d; d=d->next)
@@ -75,6 +78,8 @@ int main(int argc, char *argv[])
 		
 	} else if(!strcmp(argv[1],"listen") && argc == 4) {
 		setup_listen(argv[2], argv[3]);
+	} else if(!strcmp(argv[1],"test") && argc == 2) {
+		test();
 	} else {
 		print_help();
 	}
@@ -86,5 +91,20 @@ int main(int argc, char *argv[])
 
 
 
-
+void test() {
+	int i;
+	
+	printf("testing queue\n");
+	queue* q = queue_init();
+	printf("enqueue test\n");
+	for(i=0; i < 10; i++) {
+		printf("%d ", i);
+		enqueue(q, i);
+	}
+	printf("\ndequeue test\n");
+	for(i=0; i < 10; i++) {
+		printf("%d ", dequeue(q));
+	}
+	
+}
 

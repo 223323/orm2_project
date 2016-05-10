@@ -1,6 +1,7 @@
 TODO:
 	- client
 	- server
-	- data queue
+	+ data queue
+	- data queue multi threaded
 	- posix multi threading
 	+ listen
