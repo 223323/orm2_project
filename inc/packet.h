@@ -6,7 +6,7 @@
 // packet with this signature is valid packet
 #define SIGNATURE 0x12343210
 
-#define PACKET_HEADER_SIZE 12
+#define PACKET_HEADER_SIZE (sizeof(u_int)+sizeof(pkt_type)+sizeof(int))
 
 typedef enum _pkt_type {
 	pkt_type_ack,

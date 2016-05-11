@@ -70,7 +70,6 @@ static void server_thread(struct thread_context* ctx) {
 	
 	printf("hello from: %s\n", dev->name);
 	
-	int current_processing = 0;
 	int i;
 	
 	if(!dev->pcap_handle) {

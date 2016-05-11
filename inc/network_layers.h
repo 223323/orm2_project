@@ -61,6 +61,7 @@ void calculate_ip_header_crc(ip_header* hdr);
 //#define MAC(s,m) *(u_short*)s = htons(m >> 32); *(u_long*)(s+2) = htonl(m & 0xffffffff);
 #define MAC(m) str2mac(#m)
 #define IP_ADDR(a) (ip_address){ .ip = inet_addr(#a) } //str2ip(#a)
+#define str2ip(a) (ip_address){ .ip = inet_addr(a) }
 
 typedef struct udp_packet {
 	eth_header eth;
@@ -70,6 +71,8 @@ typedef struct udp_packet {
 } __attribute__((packed)) udp_packet;
 
 void get_mac_address(char* devname, mac_address* addr);
+
+void dump_mac(mac_address mac);
 
 int make_packet(udp_packet* pkt, 
 				mac_address smac,

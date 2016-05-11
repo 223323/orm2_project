@@ -82,16 +82,17 @@ int try_open_device(dev_context* dev) {
 	// BUG: potential bug, using same alldevs but device status might have changed,
 	//		should create new alldevs, not remove old one cuz other dev contexts might get
 	//		corrupted. So should use list of alldevs or something like that
-	if(!alldevs) {
-		if(pcap_findalldevs(&alldevs, errbuf) == -1) {
-			fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
-			exit(1);
-		}
+	
+	// TODO: implement copying important data from alldevs( d ) to dev_context
+	pcap_if_t* local_alldevs; 
+	if(pcap_findalldevs(&local_alldevs, errbuf) == -1) {
+		fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
+		exit(1);
 	}
 	
 	pcap_if_t* d;
 	pcap_t* h;
-	for(d=alldevs; d; d=d->next) {
+	for(d=local_alldevs; d; d=d->next) {
 		if(!strcmp(d->name, dev->name)) {
 			
 			if ((h = pcap_open_live(d->name, 65536,1,1000,errbuf)) == NULL) {
@@ -110,6 +111,7 @@ int try_open_device(dev_context* dev) {
 			return 1;
 		}
 	}
+	pcap_freealldevs(local_alldevs);
 	return 0;
 }
 

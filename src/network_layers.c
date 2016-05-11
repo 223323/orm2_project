@@ -154,7 +154,7 @@ int make_packet(udp_packet* pkt,
 	// ip_hdr->op_pad = 0;
 	// ip_hdr->crc = 0;
 	
-	assert(sizeof(ip_header) == 24);
+	assert(sizeof(ip_header) == 20);
 	strcpy(pkt->data, pkt_data);
 	
 	udp_header* udp_hdr = &pkt->udp;
@@ -176,9 +176,7 @@ int make_packet(udp_packet* pkt,
 	udp_hdr->crc = htons(udp_sum);
 	
 	
-	ip_hdr->tlen = sizeof(ip_header) + sizeof(udp_header) + data_length;
-	
-	ip_hdr->tlen = htons(ip_hdr->tlen);
+	ip_hdr->tlen = htons(sizeof(ip_header) + sizeof(udp_header) + data_length);
 	
 	debug(printf("crc ip\n"));
 	calculate_ip_header_crc(ip_hdr);
@@ -192,6 +190,15 @@ void dump_packet(udp_packet* pkt, char* filename) {
 	FILE* f = fopen("dump.bin", "w");
 	fwrite(pkt, 1, pkt_len, f);
 	fclose(f);
+}
+
+void dump_mac(mac_address mac) {
+	int i;
+	for(i=0; i < 6; i++) {
+		printf("%0.2X", mac.bytes[i]);
+		if(i != 5)
+			printf(":");
+	}
 }
 
 void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data, int data_length) {
@@ -244,6 +251,7 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 }
 
 int validated_packet(udp_packet *pkt) {
+	if(!pkt) return 0;
 	if(pkt->ip.ver_ihl != 0x45) {
 		printf("received data with ip.ver_ihl = % not supported, skipping !\n", pkt->ip.ver_ihl);
 		return 0;

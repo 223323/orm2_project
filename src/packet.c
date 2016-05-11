@@ -35,7 +35,7 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 int reconnect(dev_context* dev, int *should_give_up) {
 	while(!*should_give_up) {
 		if(try_open_device(dev)) return 1;
-		sleep(1);
+		usleep(2000000);
 	}
 	return 0;
 }

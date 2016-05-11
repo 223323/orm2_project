@@ -14,6 +14,7 @@ TODO:
 		- checksum validations
 	+ try_open_device devices.c
 	- testing
+	- implement method with only ethernet
 
 main:
 	- server
@@ -26,5 +27,7 @@ plan:
 		it can be opened
 	+ shared thread context { mutex, FILE **f, ... }
 	+ specific thread context
-
+	- fix connected, disconnected philosophy
+		disconnected on not getting ack
+		connected on receiving ack
 	
