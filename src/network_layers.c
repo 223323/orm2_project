@@ -125,10 +125,10 @@ int make_packet(udp_packet* pkt,
 				ip_address dip,
 				int sport,
 				int dport,
-				char* pkt_data) {
+				char* pkt_data,
+				int data_length) {
 
 	int packet_length;
-	int data_length = strlen(pkt_data);
 	
 	eth_header *eth_hdr = &pkt->eth;
 
@@ -194,7 +194,7 @@ void dump_packet(udp_packet* pkt, char* filename) {
 	fclose(f);
 }
 
-void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data) {
+void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data, int data_length) {
 	debug(printf("getting ip address ... \n"));
 	int i;
 	// get source ip addr
@@ -236,7 +236,7 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 	debug(printf("sending packet ...\n"));
 	
 	udp_packet pkt;
-	int pkt_len = make_packet(&pkt, mac_addr, dmac, ip_addr, dip, rand()%5000+1024, dport, data);
+	int pkt_len = make_packet(&pkt, mac_addr, dmac, ip_addr, dip, rand()%5000+1024, dport, data, data_length);
 	
 	 
 	pcap_sendpacket(dev->pcap_handle, (const u_char*)&pkt, pkt_len);

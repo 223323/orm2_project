@@ -1,6 +1,6 @@
 TODO:
-	- client (basic sending packets)
-	- server (basic receiving packets)
+	+ client (basic sending packets)
+	+ server (basic receiving packets)
 	+ data queue
 	+ data queue multi threaded
 	+ tinycthread multi threading
@@ -13,6 +13,7 @@ TODO:
 	+ validate_packet (checking whether packet is valid and can be processed) network_layers.c
 		- checksum validations
 	+ try_open_device devices.c
+	- testing
 
 main:
 	- server
@@ -21,7 +22,7 @@ main:
 
 plan:
 	+ device name wish list with given dmac, dip, dport
-	- when device is disconnected use sleep with loop to periodically check whether
+	+ when device is disconnected use sleep with loop to periodically check whether
 		it can be opened
 	+ shared thread context { mutex, FILE **f, ... }
 	+ specific thread context

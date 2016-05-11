@@ -88,11 +88,11 @@ void test() {
 	printf("enqueue test\n");
 	for(i=0; i < 10; i++) {
 		printf("%d ", i);
-		enqueue(q, i);
+		queue_push(q, i);
 	}
 	printf("\ndequeue test\n");
 	for(i=0; i < 10; i++) {
-		printf("%d ", dequeue(q));
+		printf("%d ", queue_pop(q));
 	}
 	printf("\n");
 }

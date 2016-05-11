@@ -79,6 +79,9 @@ void device_set_filter(dev_context *dev, char* filter) {
 int try_open_device(dev_context* dev) {
 	char errbuf[PCAP_ERRBUF_SIZE];
 	
+	// BUG: potential bug, using same alldevs but device status might have changed,
+	//		should create new alldevs, not remove old one cuz other dev contexts might get
+	//		corrupted. So should use list of alldevs or something like that
 	if(!alldevs) {
 		if(pcap_findalldevs(&alldevs, errbuf) == -1) {
 			fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
@@ -153,7 +156,7 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 		strcpy(dc[i].name, t);
 		
 		if(!try_open_device(&dc[i])) {
-			printf("warning: interface %s not found\n", t);
+			printf("warning: interface '%s' not found\n", t);
 			continue;
 		}
 		

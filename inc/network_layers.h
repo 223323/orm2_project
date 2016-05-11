@@ -78,9 +78,10 @@ int make_packet(udp_packet* pkt,
 				ip_address dip,
 				int sport,
 				int dport,
-				char* pkt_data);
+				char* pkt_data,
+				int data_length);
 void dump_packet(udp_packet* pkt, char* filename);
-void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data);
+void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport, char *data, int data_length);
 unsigned int crc32c(unsigned char *message);
 int validated_packet(udp_packet *pkt);
 int packet_get_data_length(udp_packet *pkt);
