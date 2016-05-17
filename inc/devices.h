@@ -15,5 +15,5 @@ void list_all_devices();
 void device_set_filter(dev_context *dev, char* filter);
 int try_open_device(dev_context* dev);
 void free_devices(dev_context* dev, int n_devices);
-
+int device_reopen(dev_context* dev, int *should_give_up);
 #endif

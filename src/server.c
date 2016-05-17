@@ -28,19 +28,19 @@ static void server_thread(struct thread_context* context);
 
 int setup_server(char* devlist) {
 	int i=0;
-	
+
 	int n_devices;
 	int received_init_packet;
 	dev_context* devices = load_devices(devlist, &n_devices);
-	
+
 	printf("loaded %d devices\n", n_devices);
 	printf("loaded devices are: ");
 	list_devices(devices,n_devices);
 	printf("\n");
-	
+
 	shared_context shared_ctx;
 	mtx_init(&shared_ctx.mutex, mtx_plain);
-	
+
 	thread_context* thread_contexts = (thread_context*)malloc(sizeof(thread_context)*n_devices);
 	thrd_t *thread = (thrd_t*)malloc(sizeof(thrd_t)*n_devices);
 	for(i=0; i < n_devices; i++) {
@@ -49,11 +49,11 @@ int setup_server(char* devlist) {
 		ctx->shared = &shared_ctx;
 		thrd_create(&thread[i], (thrd_start_t)server_thread, ctx);
 	}
-	
+
 	for(i=0; i < n_devices; i++) {
 		thrd_join(thread[i],0);
 	}
-	
+
 	free(thread);
 	free(thread_contexts);
 	free_devices(devices, n_devices);
@@ -67,24 +67,24 @@ void print_percentage() {
 static void server_thread(struct thread_context* ctx) {
 	dev_context* dev = ctx->dev;
 	shared_context* shared;
-	
+
 	printf("hello from: %s\n", dev->name);
-	
+
 	int i;
-	
+
 	if(!dev->pcap_handle) {
-		if(!reconnect(dev, &shared->done))
+		if(!device_reopen(dev, &shared->done))
 			return;
 		printf("connected to %s\n", dev->name);
 	}
-	
+
 	mtx_lock(&shared->mutex);
 	device_set_filter(dev, "ip and udp");
 	mtx_unlock(&shared->mutex);
-	
+
 	int num_parts;
 	int filesize;
-	
+
 	int inited = 0;
 	int timeout_num = 0;
 	struct pcap_pkthdr hdr;
@@ -92,34 +92,34 @@ static void server_thread(struct thread_context* ctx) {
 	time_t last_pkt_time = time(NULL);
 	#define DEVICE_TIMEOUT 3000
 	while(1) {
-		
+
 		if(time(NULL) - last_pkt_time > DEVICE_TIMEOUT)
-			if(!reconnect(dev, &shared->done))
+			if(!device_reopen(dev, &shared->done))
 				return;
-		
+
 		const u_char * data = pcap_next(dev->pcap_handle, &hdr);
-		
+
 		if(!data) continue;
-		
+
 		udp_packet* udp_pkt = (udp_packet*)data;
-		
+
 		if(!validated_packet(udp_pkt)) continue;
-		
+
 		Packet* pkt = (Packet*)udp_pkt->data;
-		
+
 		last_pkt_time = time(0);
-		
+
 		if(!inited) {
 			mtx_lock(&shared->mutex);
-			
+
 			if(!shared->received_init_packet && pkt->type == pkt_type_init) {
 				printf("writing to file: %s\n", pkt->init.filename);
-				
+
 				// relative path
 				char tmp[50];
 				strcpy(tmp, "./");
 				strcat(tmp, pkt->init.filename);
-				
+
 				shared->file = fopen(tmp, "w");
 				shared->received_init_packet = 1;
 				shared->max_offset = 0;
@@ -127,25 +127,25 @@ static void server_thread(struct thread_context* ctx) {
 			} else if(shared->received_init_packet) {
 				inited = 1;
 			}
-			
+
 			mtx_unlock(&shared->mutex);
 			continue;
 		}
-		
+
 		// TODO: server doesn't receive ack, but if didn't receive any data packets
 		// 		 assume disconnected
 		if(pkt->type == pkt_type_data) {
 			if(pkt->data.offset + pkt->data.size >= MAX_FILE_SIZE) {
 				printf("max file size exceeded \n");
-				return; 
+				return;
 			}
-			
+
 			mtx_lock(&shared->mutex);
 			if(pkt->data.offset > shared->max_offset) {
 				int to_fill = pkt->data.offset - shared->max_offset;
 				#define FILL_BLOCK 500
 				int zeros[FILL_BLOCK];
-				
+
 				while(to_fill > 0) {
 					int fill_size = min(to_fill, FILL_BLOCK);
 					fwrite(zeros, 1, fill_size, shared->file);
@@ -154,13 +154,13 @@ static void server_thread(struct thread_context* ctx) {
 			}
 			fseek(shared->file, pkt->data.offset, SEEK_SET);
 			fwrite(pkt->data.bytes, 1, pkt->data.size, shared->file);
-			
+
 			// if(++period > 10) {
 				// period = 0;
 				// print_percentage();
 			// }
 			mtx_unlock(&shared->mutex);
-			
+
 			Packet ack_pkt;
 			ack_pkt.signature = SIGNATURE;
 			ack_pkt.type = pkt_type_ack;
@@ -169,20 +169,18 @@ static void server_thread(struct thread_context* ctx) {
 			shared->done = 1;
 			return;
 		}
-		
-		
-		
+
 		int data_len = packet_get_data_length(udp_pkt);
-		
+
 		for(i=0; i < hdr.len; i++) {
-			printf("%0.2X ", data[i]); 
+			printf("%0.2X ", data[i]);
 		}
-		
+
 		for(i=0; i < data_len; i++) {
 			printf("%c", udp_pkt->data[i]);
 		}
-		
+
 		printf("\n---------\n");
 	}
-	
+
 }

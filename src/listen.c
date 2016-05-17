@@ -14,13 +14,13 @@ void setup_listen(char* dev, char* filter) {
 	char errbuf[PCAP_ERRBUF_SIZE];
 	u_int netmask;
 	struct bpf_program fcode;
-	
+
 	int n_devs = 0;
 	dev_context *devs = load_devices(dev, &n_devs);
-	
+
 	if(n_devs == 0) return;
-	
-	
+
+
 	adhandle = devs->pcap_handle;
 	d = devs->d;
 
@@ -30,14 +30,14 @@ void setup_listen(char* dev, char* filter) {
 		fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
 		return;
 	}
-	
+
 	//set the filter
 	if (pcap_setfilter(adhandle, &fcode)<0)
 	{
 		fprintf(stderr,"\nError setting the filter.\n");
 		return;
 	}
-	
+
 	printf("\nlistening on %s...\n", d->description);
 
 	pcap_freealldevs(get_alldevs());
@@ -82,7 +82,7 @@ void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_cha
 	dport = ntohs( uh->dport );
 
 	/* print ip addresses and udp ports */
-	printf("%d.%d.%d.%d.%d -> %d.%d.%d.%d.%d\n",
+	printf("%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d\n",
 		ih->saddr.bytes[0],
 		ih->saddr.bytes[1],
 		ih->saddr.bytes[2],

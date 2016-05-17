@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "network_layers.h"
-
+#include <unistd.h>
 static pcap_if_t *alldevs = 0;
 static int n_devices_in_use = 0;
 
@@ -23,13 +23,13 @@ void list_devices(dev_context* devs, int n_devices) {
 void list_all_devices() {
 	pcap_if_t *alldevs;
 	int i = 0;
-	
+
 	char errbuf[PCAP_ERRBUF_SIZE];
 	if(pcap_findalldevs(&alldevs, errbuf) == -1) {
 		fprintf(stderr,"Error in pcap_findalldevs: %s\n", errbuf);
 		exit(1);
 	}
-	
+
 	pcap_if_t *d;
 	for(d=alldevs; d; d=d->next)
 	{
@@ -46,7 +46,7 @@ void device_set_filter(dev_context *dev, char* filter) {
 	if(!dev->pcap_handle) return;
 	struct bpf_program fcode;
 	bpf_u_int32 netmask;
-	
+
 	#ifdef _WIN32
 		if(dev->d->addresses != NULL)
 			/* Retrieve the mask of the first address of the interface */
@@ -60,14 +60,14 @@ void device_set_filter(dev_context *dev, char* filter) {
 		else
 			netmask = ((struct sockaddr_in *)(dev->d->addresses->netmask))->sin_addr.s_addr;
 	#endif
-	
+
 	//compile the filter
 	if (pcap_compile(dev->pcap_handle, &fcode, filter, 1, netmask) <0 )
 	{
 		fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
 		return;
 	}
-	
+
 	//set the filter
 	if (pcap_setfilter(dev->pcap_handle, &fcode)<0)
 	{
@@ -78,34 +78,34 @@ void device_set_filter(dev_context *dev, char* filter) {
 
 int try_open_device(dev_context* dev) {
 	char errbuf[PCAP_ERRBUF_SIZE];
-	
+
 	// BUG: potential bug, using same alldevs but device status might have changed,
 	//		should create new alldevs, not remove old one cuz other dev contexts might get
 	//		corrupted. So should use list of alldevs or something like that
-	
+
 	// TODO: implement copying important data from alldevs( d ) to dev_context
-	pcap_if_t* local_alldevs; 
+	pcap_if_t* local_alldevs;
 	if(pcap_findalldevs(&local_alldevs, errbuf) == -1) {
 		fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
 		exit(1);
 	}
-	
+
 	pcap_if_t* d;
 	pcap_t* h;
 	for(d=local_alldevs; d; d=d->next) {
 		if(!strcmp(d->name, dev->name)) {
-			
+
 			if ((h = pcap_open_live(d->name, 65536,1,1000,errbuf)) == NULL) {
 				fprintf(stderr,"\nUnable to open the adapter. %s is not supported by libpcap, skipping !\n", d->name);
 				break;
 			}
-			
+
 			if(pcap_datalink(h) != DLT_EN10MB) {
 				fprintf(stderr,"\n%s is not using ethernet stack, skipping !\n", d->name);
 				pcap_close(h);
 				break;
 			}
-			
+
 			dev->pcap_handle = h;
 			dev->d = d;
 			return 1;
@@ -131,42 +131,49 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 	int i;
 	char* t;
 	char errbuf[PCAP_ERRBUF_SIZE];
-	
-	
+
+
 	if(pcap_findalldevs(&alldevs, errbuf) == -1) {
 		fprintf(stderr,"Error in pcap_findalldevs: %s\n", errbuf);
 		exit(1);
 	}
-	
+
 	int num_devs = 0;
 	char* devs = malloc(strlen(devlist)+1);
 	strcpy(devs,devlist);
-	
+
 	// count devices in array
 	for(t=strtok(devs, ","); t; t=strtok(NULL, ","), num_devs++);
-	
+
 	dev_context* dc = (dev_context*)malloc(sizeof(dev_context)*num_devs);
-	
+
 	int loaded_devices = 0;
 	// iterate devices in array
 	strcpy(devs,devlist);
 	for(i=0,t=strtok(devs, ","); t && i < num_devs; t=strtok(0, ","), i++) {
 
 		u_int netmask;
-		
+
 		dc[i].pcap_handle = 0;
 		strcpy(dc[i].name, t);
-		
+
 		if(!try_open_device(&dc[i])) {
 			printf("warning: interface '%s' not found\n", t);
 			continue;
 		}
-		
+
 		loaded_devices++;
 	}
-	
+
 	free(devs);
 	*n_devices = num_devs;
-	
+
 	return dc;
+}
+int device_reopen(dev_context* dev, int *should_give_up) {
+	while(!*should_give_up) {
+		if(try_open_device(dev)) return 1;
+		usleep(2000000);
+	}
+	return 0;
 }
