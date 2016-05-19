@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include "packet.h"
 
-#define debug(x) x
+#define debug(x) 
 
 void calculate_ip_header_crc(ip_header* hdr) {
 	u_short* s = (u_short*)hdr;
@@ -170,7 +170,7 @@ int make_packet(udp_packet* pkt,
 
 	udp_hdr->crc = 0;
 
-	debug(printf("crc udp\n"));
+	// debug(printf("crc udp\n"));
 	u_short udp_sum = udp_sum_calc(udp_len, (u_char*)&(ip_hdr->saddr),
 		(u_char*)&(ip_hdr->daddr), udp_len, (u_char*)udp_hdr);
 	udp_hdr->crc = htons(udp_sum);
@@ -178,7 +178,7 @@ int make_packet(udp_packet* pkt,
 
 	ip_hdr->tlen = htons(sizeof(ip_header) + sizeof(udp_header) + data_length);
 
-	debug(printf("crc ip\n"));
+	// debug(printf("crc ip\n"));
 	calculate_ip_header_crc(ip_hdr);
 
 	packet_length = sizeof(eth_header) + sizeof(ip_header) + sizeof(udp_header) + data_length;
@@ -237,16 +237,20 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 			if(i != 5)
 				printf(":");
 		}
-	)
+	
 	printf("\n");
+	)
 
-	debug(printf("sending packet ...\n"));
+	// debug(printf("sending packet ...\n"));
 
 	udp_packet pkt;
 	int pkt_len = make_packet(&pkt, mac_addr, dmac, ip_addr, dip, rand()%5000+1024, dport, data, data_length);
-
 	pcap_sendpacket(dev->pcap_handle, (const u_char*)&pkt, pkt_len);
 
+}
+
+void reply_packet(dev_context* dev, udp_packet* pkt, char *data, int data_length) {
+	send_packet(dev, pkt->eth.smac, pkt->ip.saddr, htons(pkt->udp.sport), data, data_length);
 }
 
 int validated_packet(udp_packet *pkt) {
@@ -260,6 +264,12 @@ int validated_packet(udp_packet *pkt) {
 	if (!(data_len >= 8 && mypkt->signature == SIGNATURE && data_len <= UDP_PACKET_DATA_SIZE)) return 0;
 
 	// TODO: validate checksums
+	int udp_len = htons(pkt->udp.len);
+	u_short pkt_crc = pkt->udp.crc;
+	pkt->udp.crc = 0;
+	u_short udp_checksum = udp_sum_calc(udp_len, pkt->ip.saddr.bytes, pkt->ip.daddr.bytes, udp_len, (u_char*)&pkt->udp);
+
+	if(htons(udp_checksum) != pkt_crc) return 0;
 
 	return 1;
 }

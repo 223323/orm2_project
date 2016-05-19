@@ -4,7 +4,7 @@
 #include "queue.h"
 #include <stdlib.h>
 #include <string.h>
-
+#include <assert.h>
 #include <unistd.h>
 
 static int min(int a, int b) { return a < b ? a : b; }
@@ -14,6 +14,8 @@ typedef struct shared_context {
 	FILE *file;
 	char filename[50];
 	int file_size;
+	char *chunk;
+	int chunk_offset;
 	mtx_t mutex;
 	queue* q;
 	int active_devices;
@@ -33,7 +35,8 @@ typedef struct thread_context {
 
 void client_thread(thread_context* ctx);
 
-#define BLOCK_SIZE 500
+#define CHUNK_SIZE 1000000
+#define BLOCK_SIZE 800
 int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, char *transfer_file) {
 
 	int i=0;
@@ -59,6 +62,14 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	shared_ctx.file = f;
 	shared_ctx.sent_init_packet = 0;
 	shared_ctx.q = queue_init();
+	shared_ctx.chunk = malloc(CHUNK_SIZE);
+	shared_ctx.chunk_offset = -1;
+	
+	int blocks = shared_ctx.file_size/BLOCK_SIZE + 1;
+	printf("preparing to send %d blocks of size %d\n", blocks, BLOCK_SIZE);
+	for(i=0; i < blocks; i++) {
+		queue_push(shared_ctx.q, i);
+	}
 
 	mtx_init(&shared_ctx.mutex, mtx_plain);
 
@@ -151,7 +162,7 @@ void countdown_thread(int *active_devices) {
 		printf("%d until termination\n", counter);
 		usleep(1000000); // 1 sec
 		if(--counter <= 0) {
-			printf("no devices, program terminated\n");
+			printf("no connection, program terminated\n");
 			exit(-1);
 		}
 	}
@@ -159,16 +170,17 @@ void countdown_thread(int *active_devices) {
 
 #define SEND_PACKET_AND_WAIT_ACK(pkt) 											\
 	if(reliably_send_packet_udp(dev, pkt, ctx->mac, ctx->ip, ctx->port) == 0) { \
-		pcap_perror(dev->pcap_handle, "wtf");									\
-		mtx_lock(&shared->mutex);												\
-		shared->active_devices--;                                               \
-		ctx->dev = 0;															\
-		connected = 0;															\
-		printf("device %s disconnected\n", dev->name); 							\
-		mtx_unlock(&shared->mutex);												\
-		if(shared->active_devices == 0) {                                       \
+		if(connected) {                                                         \
+			mtx_lock(&shared->mutex);											\
+			shared->active_devices--;                                           \
+			ctx->dev = 0;														\
+			connected = 0;														\
+			printf("device %s disconnected\n", dev->name); 						\
+			mtx_unlock(&shared->mutex);                                         \
+			if(shared->active_devices == 0) {                                   \
 			thrd_create(&count_thread,                                          \
 				(thrd_start_t)countdown_thread, &shared->active_devices);       \
+			}                                                                   \
 		}                                                                       \
 		/* return block to queue for other devices to finish */ 				\
 		if(processing_block != -1) { 											\
@@ -207,12 +219,12 @@ void client_thread(thread_context* ctx) {
 
 	mtx_lock(&shared->mutex);
 	shared->active_devices++;
+	connected = 1;
 	device_set_filter(dev, "ip and udp");
 	mtx_unlock(&shared->mutex);
 
 	int num_elements;
 	int processing_block = -1;
-	char block[BLOCK_SIZE];
 	int data_length;
 
 	while(1) {
@@ -226,9 +238,7 @@ void client_thread(thread_context* ctx) {
 			printf("sending file %s\n", pkt_init.init.filename);
 			pkt_init.init.file_size = shared->file_size;
 			pkt_init.size = PACKET_HEADER_SIZE + PACKET_INIT_HEADER_SIZE +
-				strlen(pkt_init.init.filename);
-
-			printf("sending packet with size %d\n", pkt_init.size);
+				strlen(pkt_init.init.filename) + 1;
 
 			// while waiting, let other thread also try send init packet
 			mtx_unlock(&shared->mutex);
@@ -240,6 +250,7 @@ void client_thread(thread_context* ctx) {
 
 		if(queue_num_elements(shared->q) > 0) {
 			processing_block = queue_pop(shared->q);
+			printf("sending block %d\n", processing_block);
 		} else {
 			printf("transfer done leaving %s device\n", dev->name);
 
@@ -252,18 +263,32 @@ void client_thread(thread_context* ctx) {
 			return;
 		}
 		if(processing_block >= 0) {
-			fseek(shared->file, processing_block*BLOCK_SIZE, SEEK_SET);
+			
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
-			fread(block, 1, data_length, shared->file);
+			printf("sending %d bytes\n", data_length);
+			
+			if(shared->chunk_offset < 0 || processing_block*BLOCK_SIZE+BLOCK_SIZE > shared->chunk_offset+CHUNK_SIZE) {
+				printf("NEW CHUNK\n");
+				shared->chunk_offset = processing_block*BLOCK_SIZE;
+				fseek(shared->file, shared->chunk_offset, SEEK_SET);
+				fread(shared->chunk, 1, CHUNK_SIZE, shared->file);
+				usleep(5000000);
+			}
 		}
 		mtx_unlock(&shared->mutex);
 
-		Packet pkt_data;
-		pkt_data.signature = SIGNATURE;
-		pkt_data.type = pkt_type_data;
-		pkt_data.data.size = data_length;
-		pkt_data.data.offset = processing_block*BLOCK_SIZE;
-		pkt_data.size = PACKET_HEADER_SIZE + PACKET_DATA_HEADER_SIZE + pkt_data.data.size;
-		SEND_PACKET_AND_WAIT_ACK(&pkt_data);
+		if(processing_block != -1) {
+			Packet pkt_data;
+			pkt_data.signature = SIGNATURE;
+			pkt_data.type = pkt_type_data;
+			pkt_data.data.size = data_length;
+			pkt_data.data.offset = processing_block*BLOCK_SIZE;
+			assert(processing_block*BLOCK_SIZE+BLOCK_SIZE <= shared->chunk_offset+CHUNK_SIZE);
+			memcpy(pkt_data.data.bytes, shared->chunk, data_length);
+			pkt_data.size = PACKET_HEADER_SIZE + PACKET_DATA_HEADER_SIZE + data_length;
+			printf("data size %d\n", pkt_data.size);
+			SEND_PACKET_AND_WAIT_ACK(&pkt_data);
+			processing_block = -1;
+		}
 	}
 }

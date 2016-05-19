@@ -2,14 +2,13 @@
 #include "devices.h"
 #include "network_layers.h"
 
-#define NUM_TRIES 3
+#define NUM_TRIES 2
 
 /*
-	after not receving ack for 3 tries, assume disconnected
+	after not receving ack for N tries, assume disconnected
 	and return false
 */
 int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_address ip, int port) {
-	int succeeded = 0;
 	int i;
 	struct pcap_pkthdr hdr;
 	for(i=0; i < NUM_TRIES; i++) {
@@ -24,10 +23,17 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 		Packet* pkt = (Packet*)udp_pkt->data;
 
 		if(pkt->type == pkt_type_ack) {
-			succeeded = 1;
+			return 1;
 			break;
 		}
 	}
 
-	return succeeded;
+	return 0;
+}
+
+void reply_ack(dev_context*dev, udp_packet* udp) {
+	Packet ack_pkt;
+	ack_pkt.signature = SIGNATURE;
+	ack_pkt.type = pkt_type_ack;
+	reply_packet(dev, udp, (char*)&ack_pkt, PACKET_HEADER_SIZE);
 }

@@ -12,6 +12,7 @@ static int min(int a, int b) { return a < b ? a : b; }
 typedef struct shared_context {
 	int received_init_packet;
 	FILE *file;
+	int file_size;
 	mtx_t mutex;
 	int max_offset;
 	int done;
@@ -22,7 +23,7 @@ typedef struct thread_context {
 	shared_context *shared;
 } thread_context;
 
-#define MAX_FILE_SIZE 5000
+#define MAX_FILE_SIZE 50000000
 
 static void server_thread(struct thread_context* context);
 
@@ -30,7 +31,6 @@ int setup_server(char* devlist) {
 	int i=0;
 
 	int n_devices;
-	int received_init_packet;
 	dev_context* devices = load_devices(devlist, &n_devices);
 
 	printf("loaded %d devices\n", n_devices);
@@ -39,6 +39,7 @@ int setup_server(char* devlist) {
 	printf("\n");
 
 	shared_context shared_ctx;
+	shared_ctx.received_init_packet = 0;
 	mtx_init(&shared_ctx.mutex, mtx_plain);
 
 	thread_context* thread_contexts = (thread_context*)malloc(sizeof(thread_context)*n_devices);
@@ -66,7 +67,7 @@ void print_percentage() {
 
 static void server_thread(struct thread_context* ctx) {
 	dev_context* dev = ctx->dev;
-	shared_context* shared;
+	shared_context* shared = ctx->shared;
 
 	printf("hello from: %s\n", dev->name);
 
@@ -81,6 +82,8 @@ static void server_thread(struct thread_context* ctx) {
 	mtx_lock(&shared->mutex);
 	device_set_filter(dev, "ip and udp");
 	mtx_unlock(&shared->mutex);
+	
+	
 
 	int num_parts;
 	int filesize;
@@ -93,9 +96,10 @@ static void server_thread(struct thread_context* ctx) {
 	#define DEVICE_TIMEOUT 3000
 	while(1) {
 
-		if(time(NULL) - last_pkt_time > DEVICE_TIMEOUT)
-			if(!device_reopen(dev, &shared->done))
-				return;
+		if(time(NULL) - last_pkt_time > DEVICE_TIMEOUT) {
+			printf("timeout\n");
+			exit(-1);
+		}
 
 		const u_char * data = pcap_next(dev->pcap_handle, &hdr);
 
@@ -103,7 +107,12 @@ static void server_thread(struct thread_context* ctx) {
 
 		udp_packet* udp_pkt = (udp_packet*)data;
 
-		if(!validated_packet(udp_pkt)) continue;
+		if(!validated_packet(udp_pkt)) {
+			printf("\npkt not good\n");
+			continue;
+		}
+		
+		// check ip and port
 
 		Packet* pkt = (Packet*)udp_pkt->data;
 
@@ -111,8 +120,8 @@ static void server_thread(struct thread_context* ctx) {
 
 		if(!inited) {
 			mtx_lock(&shared->mutex);
-
-			if(!shared->received_init_packet && pkt->type == pkt_type_init) {
+			printf("reading init pkt %d %d\n", shared->received_init_packet, pkt->type);
+			if(shared->received_init_packet == 0 && pkt->type == pkt_type_init) {
 				printf("writing to file: %s\n", pkt->init.filename);
 
 				// relative path
@@ -120,6 +129,7 @@ static void server_thread(struct thread_context* ctx) {
 				strcpy(tmp, "./");
 				strcat(tmp, pkt->init.filename);
 
+				shared->file_size = pkt->init.file_size;
 				shared->file = fopen(tmp, "w");
 				shared->received_init_packet = 1;
 				shared->max_offset = 0;
@@ -129,19 +139,27 @@ static void server_thread(struct thread_context* ctx) {
 			}
 
 			mtx_unlock(&shared->mutex);
+			
+			reply_ack(dev, udp_pkt);
 			continue;
 		}
 
 		// TODO: server doesn't receive ack, but if didn't receive any data packets
 		// 		 assume disconnected
 		if(pkt->type == pkt_type_data) {
-			if(pkt->data.offset + pkt->data.size >= MAX_FILE_SIZE) {
+			
+			reply_ack(dev, udp_pkt);
+			printf("receiving data pkt %d %d \n", pkt->data.offset, pkt->data.size);
+			if(pkt->data.offset + pkt->data.size > shared->file_size) {
 				printf("max file size exceeded \n");
 				return;
 			}
 
 			mtx_lock(&shared->mutex);
 			if(pkt->data.offset > shared->max_offset) {
+				printf("need to extend offset from %d to %d\n", shared->max_offset, pkt->data.offset);
+				fseek(shared->file, 0, SEEK_END);
+				printf("now at %d\n", ftell(shared->file));
 				int to_fill = pkt->data.offset - shared->max_offset;
 				#define FILL_BLOCK 500
 				int zeros[FILL_BLOCK];
@@ -151,9 +169,13 @@ static void server_thread(struct thread_context* ctx) {
 					fwrite(zeros, 1, fill_size, shared->file);
 					to_fill -= fill_size;
 				}
+				shared->max_offset = pkt->data.offset;
+			} else {
+				fseek(shared->file, pkt->data.offset, SEEK_SET);
 			}
-			fseek(shared->file, pkt->data.offset, SEEK_SET);
 			fwrite(pkt->data.bytes, 1, pkt->data.size, shared->file);
+			if(pkt->data.offset == shared->max_offset)
+				shared->max_offset += pkt->data.size;
 
 			// if(++period > 10) {
 				// period = 0;
@@ -161,24 +183,25 @@ static void server_thread(struct thread_context* ctx) {
 			// }
 			mtx_unlock(&shared->mutex);
 
-			Packet ack_pkt;
-			ack_pkt.signature = SIGNATURE;
-			ack_pkt.type = pkt_type_ack;
-			send_packet(dev, udp_pkt->eth.smac, udp_pkt->ip.saddr, udp_pkt->udp.sport, (char*)&ack_pkt, sizeof(Packet));
+			
 		} else if(pkt->type == pkt_type_eof) {
 			shared->done = 1;
+			printf("data transfered\n");
+			reply_ack(dev, udp_pkt);
 			return;
 		}
 
 		int data_len = packet_get_data_length(udp_pkt);
 
-		for(i=0; i < hdr.len; i++) {
-			printf("%0.2X ", data[i]);
-		}
+		// for(i=0; i < hdr.len; i++) {
+			// printf("%0.2X ", data[i]);
+		// }
+		
+		// printf("\n\n");
 
-		for(i=0; i < data_len; i++) {
-			printf("%c", udp_pkt->data[i]);
-		}
+		// for(i=0; i < data_len; i++) {
+			// printf("%c", udp_pkt->data[i]);
+		// }
 
 		printf("\n---------\n");
 	}

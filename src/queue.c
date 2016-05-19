@@ -53,9 +53,11 @@ void queue_push(queue* q, queue_val val) {
 }
 
 queue_val queue_pop(queue* q) {
+	if(!q->head) return -1;
 	queue_el* e = q->head;
 	q->head = e->next;
 	queue_val val = e->val;
 	free(e);
+	q->num_elements--;
 	return val;
 }

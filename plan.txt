@@ -11,14 +11,16 @@ TODO:
 	+ test receiving packets (pcap_loop or pcap_next)
 	+ design packets for transfer
 	+ validate_packet (checking whether packet is valid and can be processed) network_layers.c
-		- checksum validations
+		+ checksum validations
 	+ try_open_device devices.c
-	- testing
 	- implement method with only ethernet
+	- implement copying important data from alldevs( d ) to dev_context
+	- show information about transfer speed and progress percentage
+	
 
 main:
-	- server
-	- client
+	+ server
+	+ client
 
 
 plan:
@@ -27,7 +29,7 @@ plan:
 		it can be opened
 	+ shared thread context { mutex, FILE **f, ... }
 	+ specific thread context
-	- fix connected, disconnected philosophy
+	* fix connected, disconnected philosophy
 		disconnected on not getting ack
 		connected on receiving ack
 	

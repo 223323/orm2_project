@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <pcap.h>
 #include "devices.h"
+#include "network_layers.h"
 
 
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
@@ -76,22 +77,28 @@ int main(int argc, char *argv[])
 }
 
 
-
+void test_send_pkt() {
+	int t;
+	dev_context* dev = load_devices("wlan0", &t);
+	send_packet(dev, MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "heheeh", 5);
+}
 
 void test() {
 	int i;
 	
-	printf("testing queue\n");
-	queue* q = queue_init();
-	printf("enqueue test\n");
-	for(i=0; i < 10; i++) {
-		printf("%d ", i);
-		queue_push(q, i);
-	}
-	printf("\ndequeue test\n");
-	for(i=0; i < 10; i++) {
-		printf("%d ", queue_pop(q));
-	}
-	printf("\n");
+	// printf("testing queue\n");
+	// queue* q = queue_init();
+	// printf("enqueue test\n");
+	// for(i=0; i < 10; i++) {
+		// printf("%d ", i);
+		// queue_push(q, i);
+	// }
+	// printf("\ndequeue test\n");
+	// for(i=0; i < 10; i++) {
+		// printf("%d ", queue_pop(q));
+	// }
+	// printf("\n");
+	
+	test_send_pkt();
 }
 

@@ -88,5 +88,6 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 unsigned int crc32c(unsigned char *message);
 int validated_packet(udp_packet *pkt);
 int packet_get_data_length(udp_packet *pkt);
+void reply_packet(dev_context* dev, udp_packet* pkt, char *data, int data_length);
 
 #endif

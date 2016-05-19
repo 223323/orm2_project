@@ -28,16 +28,18 @@ typedef struct _Packet {
 			char filename[100];
 		} init;
 		struct DataPacket {
-			#define PACKET_DATA_HEADER_SIZE (sizeof(int)+sizeof(int));
+			#define PACKET_DATA_HEADER_SIZE (sizeof(int)+sizeof(int))
+			#define PACKET_DATA_MAX_BYTES (UDP_PACKET_DATA_SIZE-500)
 			int offset;
 			int size;
-			char bytes[UDP_PACKET_DATA_SIZE-16];
+			char bytes[UDP_PACKET_DATA_SIZE-500];
 		} data;
+		int ack_state;
 	};
 
 } Packet;
 
 int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_address ip, int port);
-
+void reply_ack(dev_context*dev, udp_packet* udp);
 
 #endif
