@@ -14,13 +14,13 @@ typedef enum _pkt_type {
 } pkt_type;
 
 typedef struct _Packet {
-	#define PACKET_HEADER_SIZE (sizeof(u_int)+sizeof(pkt_type)+sizeof(int))
+	#define PACKET_HEADER_SIZE (sizeof(u_int)+sizeof(pkt_type)+sizeof(int)+sizeof(int))
 	// packet with this signature is valid packet
 	#define SIGNATURE 0x12343210
 	u_int signature;
 	pkt_type type;
 	int size;
-
+	int id;
 	union {
 		struct IntroPacket {
 			#define PACKET_INIT_HEADER_SIZE (sizeof(int))

@@ -6,6 +6,8 @@
 #include <string.h>
 #include <assert.h>
 #include <unistd.h>
+#include <libgen.h>
+
 
 static int min(int a, int b) { return a < b ? a : b; }
 
@@ -234,7 +236,7 @@ void client_thread(thread_context* ctx) {
 			Packet pkt_init;
 			pkt_init.signature = SIGNATURE;
 			pkt_init.type = pkt_type_init;
-			strcpy(pkt_init.init.filename, shared->filename);
+			strcpy(pkt_init.init.filename, basename(shared->filename));
 			printf("sending file %s\n", pkt_init.init.filename);
 			pkt_init.init.file_size = shared->file_size;
 			pkt_init.size = PACKET_HEADER_SIZE + PACKET_INIT_HEADER_SIZE +
