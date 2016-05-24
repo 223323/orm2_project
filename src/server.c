@@ -159,7 +159,7 @@ static void server_thread(struct thread_context* ctx) {
 			if(pkt->data.offset > shared->max_offset) {
 				printf("need to extend offset from %d to %d\n", shared->max_offset, pkt->data.offset);
 				fseek(shared->file, 0, SEEK_END);
-				printf("now at %d\n", ftell(shared->file));
+				printf("now at %d\n", (int)ftell(shared->file));
 				int to_fill = pkt->data.offset - shared->max_offset;
 				#define FILL_BLOCK 500
 				int zeros[FILL_BLOCK];
@@ -171,8 +171,10 @@ static void server_thread(struct thread_context* ctx) {
 				}
 				shared->max_offset = pkt->data.offset;
 			} else {
+				printf("seek to %d\n", (int)pkt->data.offset);
 				fseek(shared->file, pkt->data.offset, SEEK_SET);
 			}
+			//printf("writing ==%s==\n", pkt->data.bytes);
 			fwrite(pkt->data.bytes, 1, pkt->data.size, shared->file);
 			if(pkt->data.offset == shared->max_offset)
 				shared->max_offset += pkt->data.size;

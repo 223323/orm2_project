@@ -18,6 +18,7 @@ typedef struct shared_context {
 	int file_size;
 	char *chunk;
 	int chunk_offset;
+	int num_blocks;
 	mtx_t mutex;
 	queue* q;
 	int active_devices;
@@ -68,6 +69,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	shared_ctx.chunk_offset = -1;
 	
 	int blocks = shared_ctx.file_size/BLOCK_SIZE + 1;
+	shared_ctx.num_blocks = blocks;
 	printf("preparing to send %d blocks of size %d\n", blocks, BLOCK_SIZE);
 	for(i=0; i < blocks; i++) {
 		queue_push(shared_ctx.q, i);
@@ -252,7 +254,7 @@ void client_thread(thread_context* ctx) {
 
 		if(queue_num_elements(shared->q) > 0) {
 			processing_block = queue_pop(shared->q);
-			printf("sending block %d\n", processing_block);
+			printf("[%s] sending block %d/%d\n", dev->name, processing_block, shared->num_blocks);
 		} else {
 			printf("transfer done leaving %s device\n", dev->name);
 
@@ -267,7 +269,7 @@ void client_thread(thread_context* ctx) {
 		if(processing_block >= 0) {
 			
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
-			printf("sending %d bytes\n", data_length);
+			// printf("sending %d bytes\n", data_length);
 			
 			if(shared->chunk_offset < 0 || processing_block*BLOCK_SIZE+BLOCK_SIZE > shared->chunk_offset+CHUNK_SIZE) {
 				printf("NEW CHUNK\n");
@@ -286,9 +288,11 @@ void client_thread(thread_context* ctx) {
 			pkt_data.data.size = data_length;
 			pkt_data.data.offset = processing_block*BLOCK_SIZE;
 			assert(processing_block*BLOCK_SIZE+BLOCK_SIZE <= shared->chunk_offset+CHUNK_SIZE);
-			memcpy(pkt_data.data.bytes, shared->chunk, data_length);
+			assert(processing_block*BLOCK_SIZE >= shared->chunk_offset);
+			memcpy(pkt_data.data.bytes, 
+				shared->chunk+(processing_block*BLOCK_SIZE-shared->chunk_offset), data_length);
 			pkt_data.size = PACKET_HEADER_SIZE + PACKET_DATA_HEADER_SIZE + data_length;
-			printf("data size %d\n", pkt_data.size);
+			// printf("data size %d\n", pkt_data.size);
 			SEND_PACKET_AND_WAIT_ACK(&pkt_data);
 			processing_block = -1;
 		}

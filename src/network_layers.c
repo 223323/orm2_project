@@ -195,7 +195,7 @@ void dump_packet(udp_packet* pkt, char* filename) {
 void dump_mac(mac_address mac) {
 	int i;
 	for(i=0; i < 6; i++) {
-		printf("%0.2X", mac.bytes[i]);
+		printf("%.2X", (int)mac.bytes[i]);
 		if(i != 5)
 			printf(":");
 	}
@@ -256,7 +256,7 @@ void reply_packet(dev_context* dev, udp_packet* pkt, char *data, int data_length
 int validated_packet(udp_packet *pkt) {
 	if(!pkt) return 0;
 	if(pkt->ip.ver_ihl != 0x45) {
-		printf("received data with ip.ver_ihl = % not supported, skipping !\n", pkt->ip.ver_ihl);
+		printf("received data with ip.ver_ihl = %d not supported, skipping !\n", (int)pkt->ip.ver_ihl);
 		return 0;
 	}
 	int data_len = packet_get_data_length(pkt);

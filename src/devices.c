@@ -95,7 +95,7 @@ int try_open_device(dev_context* dev) {
 	for(d=local_alldevs; d; d=d->next) {
 		if(!strcmp(d->name, dev->name)) {
 
-			if ((h = pcap_open_live(d->name, 65536,1,1000,errbuf)) == NULL) {
+			if ((h = pcap_open_live(d->name, 65536,1,0,errbuf)) == NULL) {
 				fprintf(stderr,"\nUnable to open the adapter. %s is not supported by libpcap, skipping !\n", d->name);
 				break;
 			}
