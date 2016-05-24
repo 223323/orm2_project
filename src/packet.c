@@ -44,7 +44,6 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 			}
 			
 		}
-		printf("wtf\n");
 	}
 
 	return 0;

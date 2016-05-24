@@ -94,7 +94,7 @@ static void server_thread(struct thread_context* ctx) {
 	int period = 0;
 	time_t last_pkt_time = time(NULL);
 	#define DEVICE_TIMEOUT 3000
-	while(1) {
+	while(!shared->done) {
 
 		if(time(NULL) - last_pkt_time > DEVICE_TIMEOUT) {
 			printf("timeout\n");
@@ -108,7 +108,7 @@ static void server_thread(struct thread_context* ctx) {
 		udp_packet* udp_pkt = (udp_packet*)data;
 
 		if(!validated_packet(udp_pkt)) {
-			printf("\npkt not good\n");
+			//printf("\npkt not good\n");
 			continue;
 		}
 		

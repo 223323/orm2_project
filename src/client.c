@@ -231,7 +231,7 @@ void client_thread(thread_context* ctx) {
 	int processing_block = -1;
 	int data_length;
 
-	while(1) {
+	while(!shared->done) {
 
 		mtx_lock(&shared->mutex);
 		if(shared->sent_init_packet == 0) {
@@ -239,7 +239,7 @@ void client_thread(thread_context* ctx) {
 			pkt_init.signature = SIGNATURE;
 			pkt_init.type = pkt_type_init;
 			strcpy(pkt_init.init.filename, basename(shared->filename));
-			printf("sending file %s\n", pkt_init.init.filename);
+			printf("[%s] sending file %s\n", dev->name, pkt_init.init.filename);
 			pkt_init.init.file_size = shared->file_size;
 			pkt_init.size = PACKET_HEADER_SIZE + PACKET_INIT_HEADER_SIZE +
 				strlen(pkt_init.init.filename) + 1;
@@ -257,7 +257,7 @@ void client_thread(thread_context* ctx) {
 			printf("[%s] sending block %d/%d\n", dev->name, processing_block, shared->num_blocks);
 		} else {
 			printf("transfer done leaving %s device\n", dev->name);
-
+			shared->done = 1;
 			Packet pkt_eof;
 			pkt_eof.signature = SIGNATURE;
 			pkt_eof.type = pkt_type_eof;
@@ -271,7 +271,8 @@ void client_thread(thread_context* ctx) {
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
 			// printf("sending %d bytes\n", data_length);
 			
-			if(shared->chunk_offset < 0 || processing_block*BLOCK_SIZE+BLOCK_SIZE > shared->chunk_offset+CHUNK_SIZE) {
+			if(shared->chunk_offset < 0 || processing_block*BLOCK_SIZE < shared->chunk_offset || 
+				processing_block*BLOCK_SIZE+BLOCK_SIZE > shared->chunk_offset+CHUNK_SIZE) {
 				printf("NEW CHUNK\n");
 				shared->chunk_offset = processing_block*BLOCK_SIZE;
 				fseek(shared->file, shared->chunk_offset, SEEK_SET);
