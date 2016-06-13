@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include "packet.h"
 
-#define debug(x) 
+#define debug(x)
 
 void calculate_ip_header_crc(ip_header* hdr) {
 	u_short* s = (u_short*)hdr;
@@ -237,7 +237,7 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 			if(i != 5)
 				printf(":");
 		}
-	
+
 	printf("\n");
 	)
 

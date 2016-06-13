@@ -42,7 +42,7 @@ void queue_push(queue* q, queue_val val) {
 	queue_el* el = (queue_el*)malloc(sizeof(queue_el));
 	el->val = val;
 	el->next = 0;
-	
+
 	if(q->tail) {
 		q->tail->next = el;
 	} else {
@@ -56,6 +56,7 @@ queue_val queue_pop(queue* q) {
 	if(!q->head) return -1;
 	queue_el* e = q->head;
 	q->head = e->next;
+	if(!q->head) q->tail = 0;
 	queue_val val = e->val;
 	free(e);
 	q->num_elements--;

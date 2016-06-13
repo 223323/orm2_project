@@ -4,8 +4,9 @@
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
+#include <string.h>
 #define NUM_TRIES 2
-
+#include <unistd.h>
 /*
 	after not receving ack for N tries, assume disconnected
 	and return false
@@ -20,9 +21,7 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 	double elapsed1=0;
 	ts.tv_sec = ts.tv_nsec = 0;
 	for(i=0; i < NUM_TRIES; i++) {
-
 		send_packet(dev, mac, ip, port, (char*)pkt, pkt->size);
-
 		clock_gettime(CLOCK_MONOTONIC,  &ts2);
 		elapsed1 = ts2.tv_sec + (double)ts2.tv_nsec / 1e9;
 		while(elapsed - elapsed1 < 0.5) {
@@ -39,13 +38,15 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 			Packet* pkt = (Packet*)udp_pkt->data;
 
 			if(pkt->type == pkt_type_ack && pkt->id == id) {
+				// printf("packet ack recvd %s (%d)\n", dev->name, id);
 				return 1;
 				break;
 			}
-			
+
 		}
 	}
-
+	// printf("pkt lost/error %s\n", dev->name);
+	// usleep(10000000);
 	return 0;
 }
 

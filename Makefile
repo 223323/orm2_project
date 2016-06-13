@@ -8,8 +8,8 @@ src :=	\
 	src/queue.c				\
 	src/packet.c			\
 	src/tinycthread.c
-	
-lib := -lpcap -lpthread -lrt
+
+lib := -lpcap -lpthread -lrt -lncurses
 exec := project
 inc := -Iinc
 
