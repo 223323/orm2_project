@@ -199,10 +199,8 @@ void countdown_thread(int *active_devices) {
 		ctx->lost++;															\
 		mtx_lock(&shared->mutex);												\
 		if(ctx->connected) {                                                    \
-			ctx->dev = 0;														\
 			ctx->connected = 0;													\
 			shared->active_devices--;                                       	\
-			/* return block to queue for other devices to finish */ 			\
 																		        \
 			if(shared->active_devices == 0) {                                   \
 			thrd_create(&count_thread,                                          \
@@ -234,8 +232,6 @@ void client_thread(thread_context* ctx) {
 	dev_context* dev = ctx->dev;
 	shared_context* shared = ctx->shared;
 
-	// printw("hello from: %s\n", dev->name);
-
 	if(!dev->pcap_handle) {
 		if(!device_reopen(dev, &shared->done))
 			return;
@@ -262,7 +258,6 @@ void client_thread(thread_context* ctx) {
 			pkt_init.size = PACKET_HEADER_SIZE + PACKET_INIT_HEADER_SIZE +
 				strlen(pkt_init.init.filename) + 1;
 
-			// while waiting, let other thread also try send init packet
 			mtx_unlock(&shared->mutex);
 
 			SEND_PACKET_AND_WAIT_ACK(&pkt_init);
@@ -306,7 +301,6 @@ void client_thread(thread_context* ctx) {
 			}
 		}
 		mtx_unlock(&shared->mutex);
-
 
 		if(processing_block != -1) {
 			Packet pkt_data;
