@@ -13,6 +13,9 @@ static int min(int a, int b) { return a < b ? a : b; }
 
 int termination_counter = 0;
 
+#define MAX_DEVICES 5
+
+
 typedef struct shared_context {
 	int sent_init_packet;
 	FILE *file;
@@ -156,18 +159,45 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 
 #ifdef STATISTICS
 	// print status
+	struct timespec ts2;
+	clock_gettime(CLOCK_MONOTONIC,  &ts2);
+	double ref = ts2.tv_sec + ts2.tv_nsec / 1e9;
+	
+	int pkts[MAX_DEVICES];
+	int pps[MAX_DEVICES];
+	int pps_total=0;
+	int pkts_total=0;
+	memset(pkts,0,sizeof(int)*MAX_DEVICES);
+	memset(pps,0,sizeof(int)*MAX_DEVICES);
 	while(!shared_ctx.done) {
 		erase();
+		clock_gettime(CLOCK_MONOTONIC,  &ts2);
+		double passed = ts2.tv_sec + ts2.tv_nsec / 1e9;
+		int secondPassed = (passed-ref > 1.0);
 		printw("sending: %s\n", shared_ctx.filename);
 		for(i=0; i < n_devices; i++) {
 			thread_context *ctx = thread_contexts+i;
-			printw("[%s] %s sent: %d loss: %d\n", ctx->dev->name, ctx->connected ? "connected" : "disconnected",
-				ctx->sent, ctx->lost);
+			int old = pkts[i];
+			if(secondPassed) {
+				pkts[i] = ctx->sent;
+				pps[i] = ctx->sent - old;
+			}
+			
+			printw("[%s] %s sent: %d loss: %d,  %dkB/s\n", ctx->dev->name, ctx->connected ? "connected" : "disconnected",
+				ctx->sent, ctx->lost, pps[i]*BLOCK_SIZE/1000);
 		}
-		printw("total: %d/%d\n", shared_ctx.sent, shared_ctx.num_blocks);
+		int old = pkts_total;
+		if(secondPassed) {
+			pkts_total = shared_ctx.sent;
+			pps_total = pkts_total - old;
+		}
+		printw("total: %d/%d %d%%  %dkB/s\n", shared_ctx.sent, shared_ctx.num_blocks, shared_ctx.sent*100/shared_ctx.num_blocks,
+			pps_total*BLOCK_SIZE/1000);
 		if(termination_counter > 0) {
 			printw("no connection, closing program after %d seconds\n", termination_counter);
 		}
+		if(secondPassed)
+			ref = passed;
 		refresh();
 		usleep(100000);
 	}

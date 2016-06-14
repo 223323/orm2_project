@@ -15,7 +15,7 @@ TODO:
 	+ try_open_device devices.c
 	- implement method with only ethernet
 	+ implement copying important data from alldevs( d ) to dev_context
-	- show information about transfer speed and progress percentage
+	+ show information about transfer speed and progress percentage
 	+ consistent print status of all devices
 	+ ip validation
 	- port validation

@@ -119,7 +119,6 @@ static void server_thread(struct thread_context* ctx) {
 
 		// check ip and port
 		Packet* pkt = (Packet*)udp_pkt->data;
-		// last_pkt_time = time(0);
 
 		if(!inited) {
 			mtx_lock(&shared->mutex);
