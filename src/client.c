@@ -176,7 +176,6 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	queue_destroy(shared_ctx.q);
 	free(thread);
 	free(thread_contexts);
-	free_devices(devices, n_devices);
 
 	endwin();
 	return 0;

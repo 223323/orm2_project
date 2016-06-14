@@ -24,7 +24,7 @@ typedef struct thread_context {
 	shared_context *shared;
 } thread_context;
 
-#define MAX_FILE_SIZE 50000000
+#define MAX_FILE_SIZE 5000000000
 
 static void server_thread(struct thread_context* context);
 
@@ -56,9 +56,10 @@ int setup_server(char* devlist) {
 		thrd_join(thread[i],0);
 	}
 
+	mtx_destroy(&shared_ctx.mutex);
 	free(thread);
 	free(thread_contexts);
-	free_devices(devices, n_devices);
+	// free_devices(devices, n_devices);
 
 	return 0;
 }

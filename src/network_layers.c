@@ -206,15 +206,11 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 	int i;
 	// get source ip addr
 	ip_address ip_addr;
-	struct pcap_addr* adr;
-	for(adr = dev->d->addresses; adr; adr=adr->next) {
-		struct sockaddr* addr = adr->addr;
-		if(addr->sa_family == AF_INET) {
-			char* ip = addr->sa_data+2;
-			for(i=0; i < 4; i++) {
-				ip_addr.bytes[i] = ip[i];
-			}
-			break;
+	struct sockaddr* addr = &dev->addr;
+	if(addr->sa_family == AF_INET) {
+		char* ip = addr->sa_data+2;
+		for(i=0; i < 4; i++) {
+			ip_addr.bytes[i] = ip[i];
 		}
 	}
 
@@ -229,7 +225,8 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 
 	mac_address mac_addr;
 	debug(printf("\ngetting mac address ... "));
-	get_mac_address(dev->d->name, &mac_addr);
+	get_mac_address(dev->name, &mac_addr);
+	
 	debug(
 		printf("\nmac address is: ");
 		for(i=0; i < 6; i++) {
@@ -238,10 +235,9 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 				printf(":");
 		}
 
-	printf("\n");
+		printf("\n");
 	)
 
-	// debug(printf("sending packet ...\n"));
 
 	udp_packet pkt;
 	int pkt_len = make_packet(&pkt, mac_addr, dmac, ip_addr, dip, rand()%5000+1024, dport, data, data_length);

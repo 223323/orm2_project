@@ -7,7 +7,6 @@ void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_cha
 // --------- basic listen with filters
 void setup_listen(char* dev, char* filter) {
 	pcap_if_t *alldevs;
-	pcap_if_t *d;
 	int inum;
 	int i=0;
 	pcap_t *adhandle;
@@ -22,7 +21,6 @@ void setup_listen(char* dev, char* filter) {
 
 
 	adhandle = devs->pcap_handle;
-	d = devs->d;
 
 	//compile the filter
 	if (pcap_compile(adhandle, &fcode, filter, 1, netmask) <0 )
@@ -38,9 +36,6 @@ void setup_listen(char* dev, char* filter) {
 		return;
 	}
 
-	printf("\nlistening on %s...\n", d->description);
-
-	pcap_freealldevs(get_alldevs());
 	/* start the capture */
 	pcap_loop(adhandle, 0, packet_handler, NULL);
 }

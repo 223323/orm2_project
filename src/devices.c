@@ -4,17 +4,13 @@
 #include <stdlib.h>
 #include "network_layers.h"
 #include <unistd.h>
-static pcap_if_t *alldevs = 0;
-static int n_devices_in_use = 0;
 
-pcap_if_t* get_alldevs() { return alldevs; }
 
 void list_devices(dev_context* devs, int n_devices) {
-	pcap_if_t* d;
 	int i;
 	for(i=0; i < n_devices; i++) {
 		if(!devs[i].pcap_handle) continue;
-		printf("%s", devs[i].d->name);
+		printf("%s", devs[i].name);
 		if(i != n_devices - 1)
 			printf(", ");
 	}
@@ -55,10 +51,7 @@ void device_set_filter(dev_context *dev, char* filter) {
 			/* If the interface is without addresses we suppose to be in a C class network */
 			netmask=0xffffff;
 	#else
-		if (!dev->d->addresses->netmask)
-			netmask = 0;
-		else
-			netmask = ((struct sockaddr_in *)(dev->d->addresses->netmask))->sin_addr.s_addr;
+		netmask = ((struct sockaddr_in *)(&dev->netmask))->sin_addr.s_addr;
 	#endif
 
 	//compile the filter
@@ -79,14 +72,9 @@ void device_set_filter(dev_context *dev, char* filter) {
 int try_open_device(dev_context* dev) {
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-	// BUG: potential bug, using same alldevs but device status might have changed,
-	//		should create new alldevs, not remove old one cuz other dev contexts might get
-	//		corrupted. So should use list of alldevs or something like that
-
-	// TODO: implement copying important data from alldevs( d ) to dev_context
 	pcap_if_t* local_alldevs;
 	if(pcap_findalldevs(&local_alldevs, errbuf) == -1) {
-		fprintf(stderr,"Critical error in pcap_findalldevs: %s\n", errbuf);
+		fprintf(stderr,"critical error in pcap_findalldevs: %s\n", errbuf);
 		exit(1);
 	}
 
@@ -107,7 +95,15 @@ int try_open_device(dev_context* dev) {
 			}
 
 			dev->pcap_handle = h;
-			dev->d = d;
+			struct pcap_addr* adr;
+			for(adr = d->addresses; adr; adr=adr->next) {
+				struct sockaddr* addr = adr->addr;
+				if(addr->sa_family == AF_INET) {					
+					dev->addr = *d->addresses->addr;
+					dev->netmask = *d->addresses->netmask;
+					break;
+				}
+			}
 			return 1;
 		}
 	}
@@ -116,23 +112,13 @@ int try_open_device(dev_context* dev) {
 }
 
 
-void free_devices(dev_context* dev, int n_devices) {
-	free(dev);
-	n_devices_in_use -= n_devices;
-	if(n_devices_in_use <= 0) {
-		pcap_freealldevs(alldevs);
-		alldevs = 0;
-		n_devices_in_use = 0;
-	}
-}
-
 dev_context* load_devices(char* devlist, int *n_devices) {
 
 	int i;
 	char* t;
 	char errbuf[PCAP_ERRBUF_SIZE];
 
-
+	pcap_if_t *alldevs;
 	if(pcap_findalldevs(&alldevs, errbuf) == -1) {
 		fprintf(stderr,"Error in pcap_findalldevs: %s\n", errbuf);
 		exit(1);
@@ -166,7 +152,9 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 	}
 
 	free(devs);
-	*n_devices = num_devs;
+	
+	// *n_devices = num_devs;
+	pcap_freealldevs(alldevs);
 
 	return dc;
 }
