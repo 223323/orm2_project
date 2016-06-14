@@ -16,7 +16,7 @@ int termination_counter = 0;
 typedef struct shared_context {
 	int sent_init_packet;
 	FILE *file;
-	char filename[50];
+	char filename[200];
 	int file_size;
 	char *chunk;
 	int chunk_offset;
@@ -46,18 +46,21 @@ typedef struct thread_context {
 
 void client_thread(thread_context* ctx);
 
+#define STATISTICS
+
 #define CHUNK_SIZE 1000000
 #define BLOCK_SIZE 800
 int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, char *transfer_file) {
 
 	int i=0;
-	WINDOW* wnd = initscr();
+#ifdef STATISTICS
+	initscr();
+#endif
 	int n_devices;
 	dev_context* devices = load_devices(devlist, &n_devices);
 
-	list_devices(devices, n_devices);
-
 	shared_context shared_ctx;
+
 	FILE* f = fopen(transfer_file, "rb");
 	if(!f) {
 		printf("file %s not found\n", transfer_file);
@@ -125,8 +128,6 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 		}
 		ctx->mac = str2mac(t_mac);
 
-		dump_mac(ctx->mac);
-
 		t_mac = strtok_r(NULL, ",", &t_mac_state);
 
 		if(is_udp_version) {
@@ -153,9 +154,11 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 		thrd_create(&thread[i], (thrd_start_t)client_thread, ctx);
 	}
 
+#ifdef STATISTICS
 	// print status
 	while(!shared_ctx.done) {
 		erase();
+		printw("sending: %s\n", shared_ctx.filename);
 		for(i=0; i < n_devices; i++) {
 			thread_context *ctx = thread_contexts+i;
 			printw("[%s] %s sent: %d loss: %d\n", ctx->dev->name, ctx->connected ? "connected" : "disconnected",
@@ -168,6 +171,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 		refresh();
 		usleep(100000);
 	}
+#endif
 
 	for(i=0; i < n_devices; i++) {
 		thrd_join(thread[i],0);
@@ -176,6 +180,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	queue_destroy(shared_ctx.q);
 	free(thread);
 	free(thread_contexts);
+	free(devices);
 
 	endwin();
 	return 0;
@@ -184,11 +189,12 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 thrd_t count_thread;
 
 void countdown_thread(int *active_devices) {
-	termination_counter = 10;
+	termination_counter = 100;
 	while(*active_devices == 0) {
 		usleep(1000000); // 1 sec
 		if(--termination_counter <= 0) {
 			printf("no connection, program terminated\n");
+			endwin();
 			exit(-1);
 		}
 	}
@@ -213,7 +219,8 @@ void countdown_thread(int *active_devices) {
 			processing_block = -1;												\
 		}		                                                                \
 		mtx_unlock(&shared->mutex);                                         	\
-		if(strstr(pcap_geterr(dev->pcap_handle), "No such device")) {			\
+		if(strstr(pcap_geterr(dev->pcap_handle), "No such device")||			\
+			strstr(pcap_geterr(dev->pcap_handle), "went down")) {				\
 			/* only if device card is unplugged (like usb wifi)	*/				\
 			if(!device_reopen(dev, &shared->done)) {							\
 				return;															\

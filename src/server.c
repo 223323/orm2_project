@@ -28,7 +28,7 @@ typedef struct thread_context {
 
 static void server_thread(struct thread_context* context);
 
-int setup_server(char* devlist) {
+int setup_server(char* devlist, int port) {
 	int i=0;
 
 	int n_devices;
@@ -41,6 +41,7 @@ int setup_server(char* devlist) {
 
 	shared_context shared_ctx;
 	shared_ctx.received_init_packet = 0;
+	shared_ctx.done = 0;
 	mtx_init(&shared_ctx.mutex, mtx_plain);
 
 	thread_context* thread_contexts = (thread_context*)malloc(sizeof(thread_context)*n_devices);
@@ -59,7 +60,7 @@ int setup_server(char* devlist) {
 	mtx_destroy(&shared_ctx.mutex);
 	free(thread);
 	free(thread_contexts);
-	// free_devices(devices, n_devices);
+	free(devices);
 
 	return 0;
 }
@@ -93,16 +94,32 @@ static void server_thread(struct thread_context* ctx) {
 
 		const u_char * data = pcap_next(dev->pcap_handle, &hdr);
 
-		if(!data) continue;
+		if(!data) {
+			// printf("no data (%s)\n", pcap_geterr(dev->pcap_handle));
+			usleep(1000);
+			if(strstr(pcap_geterr(dev->pcap_handle), "No such device") || 
+				strstr(pcap_geterr(dev->pcap_handle), "went down")) {
+				/* only if device card is unplugged (like usb wifi)	*/	
+				// printf("no such device\n");
+				if(!device_reopen(dev, &shared->done)) {				
+					return;												
+				}														
+			}	
+			continue;
+		}
 		udp_packet* udp_pkt = (udp_packet*)data;
 
 		if(!validated_packet(udp_pkt)) {
 			continue;
 		}
+		
+		if(!validate_ip(dev, udp_pkt)) {
+			continue;
+		}
 
 		// check ip and port
 		Packet* pkt = (Packet*)udp_pkt->data;
-		last_pkt_time = time(0);
+		// last_pkt_time = time(0);
 
 		if(!inited) {
 			mtx_lock(&shared->mutex);
@@ -119,13 +136,13 @@ static void server_thread(struct thread_context* ctx) {
 				shared->received_init_packet = 1;
 				shared->max_offset = 0;
 				inited = 1;
+				mtx_unlock(&shared->mutex);
+				reply_ack(dev, udp_pkt);
 			} else if(shared->received_init_packet) {
 				inited = 1;
+				mtx_unlock(&shared->mutex);
 			}
 
-			mtx_unlock(&shared->mutex);
-
-			reply_ack(dev, udp_pkt);
 			continue;
 		}
 
@@ -165,10 +182,12 @@ static void server_thread(struct thread_context* ctx) {
 			mtx_unlock(&shared->mutex);
 
 		} else if(pkt->type == pkt_type_eof) {
-			shared->done = 1;
 			printf("data transfered leaving %s\n", dev->name);
-			fclose(shared->file);
-			reply_ack(dev, udp_pkt);
+			if(!shared->done) {
+				shared->done = 1;
+				fclose(shared->file);
+				reply_ack(dev, udp_pkt);
+			}
 			return;
 		}
 	}

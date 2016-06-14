@@ -98,9 +98,16 @@ int try_open_device(dev_context* dev) {
 			struct pcap_addr* adr;
 			for(adr = d->addresses; adr; adr=adr->next) {
 				struct sockaddr* addr = adr->addr;
-				if(addr->sa_family == AF_INET) {					
-					dev->addr = *d->addresses->addr;
-					dev->netmask = *d->addresses->netmask;
+				if(addr->sa_family == AF_INET) {	
+					// int i;
+					// printf("[%s] loaded ip: ", dev->name);
+					// for(i=0; i < 4; i++) {
+						// printf("%d.", (u_char)addr->sa_data[i+2]);
+					// }
+					// printf("\n");
+					dev->addr = *addr;
+					if(d->addresses->netmask)
+						dev->netmask = *adr->netmask;
 					break;
 				}
 			}
@@ -153,7 +160,7 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 
 	free(devs);
 	
-	// *n_devices = num_devs;
+	*n_devices = num_devs;
 	pcap_freealldevs(alldevs);
 
 	return dc;
@@ -161,7 +168,7 @@ dev_context* load_devices(char* devlist, int *n_devices) {
 int device_reopen(dev_context* dev, int *should_give_up) {
 	while(!*should_give_up) {
 		if(try_open_device(dev)) return 1;
-		usleep(2000000);
+		usleep(1000000);
 	}
 	return 0;
 }

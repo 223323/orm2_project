@@ -8,7 +8,7 @@ typedef struct _dev_context {
 	pcap_t *pcap_handle;
 	struct sockaddr netmask;
 	struct sockaddr addr;
-	// pcap_if_t* d;
+	int port;
 } dev_context;
 
 dev_context* load_devices(char* devlist, int *n_devices);

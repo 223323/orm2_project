@@ -31,6 +31,8 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 			const u_char * data = pcap_next(dev->pcap_handle, &hdr);
 			udp_packet* udp_pkt = (udp_packet*)data;
 			if(!validated_packet(udp_pkt)) continue;
+			
+			if(!validate_ip(dev,udp_pkt)) continue;
 
 			Packet* pkt = (Packet*)udp_pkt->data;
 
@@ -43,6 +45,17 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 	}
 	return 0;
 }
+
+char validate_ip(dev_context*dev, udp_packet* udp) {
+	int i;
+	for(i=0; i < 4; i++) {
+		if((u_char)dev->addr.sa_data[i+2] != (u_char)udp->ip.daddr.bytes[i]) {
+			return 0;
+		}
+	}
+	return 1;
+}
+
 
 void reply_ack(dev_context*dev, udp_packet* udp) {
 	Packet ack_pkt;

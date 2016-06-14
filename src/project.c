@@ -28,7 +28,7 @@
 
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data);
 void setup_listen(char* dev, char* filter); // listen.c
-int setup_server(char *devlist); // server.c
+int setup_server(char *devlist, int port); // server.c
 int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, char *transfer_file); // client.c
 
 void print_help() {
@@ -48,9 +48,11 @@ int main(int argc, char *argv[])
 {
 	
 	if(argc <= 1) print_help();
-	if(!strcmp(argv[1], "server") && argc == 3) {
+	if(!strcmp(argv[1], "server") && argc == 4) {
 		char* devlist = argv[2];
-		return setup_server(devlist);
+		int port = atoi(argv[3]);
+		if(port < 1000 || port > 65535) return -1;
+		return setup_server(devlist, port);
 	} else if(!strcmp(argv[1],"client") && argc == 7) {
 		
 		char* devlist = argv[2];

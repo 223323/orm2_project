@@ -41,5 +41,6 @@ typedef struct _Packet {
 
 int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_address ip, int port);
 void reply_ack(dev_context*dev, udp_packet* udp);
+char validate_ip(dev_context*dev, udp_packet* udp);
 
 #endif

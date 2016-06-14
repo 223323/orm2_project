@@ -17,6 +17,8 @@ TODO:
 	+ implement copying important data from alldevs( d ) to dev_context
 	- show information about transfer speed and progress percentage
 	+ consistent print status of all devices
+	+ ip validation
+	- port validation
 
 main:
 	+ server
@@ -29,8 +31,8 @@ BUGS:
 		(timeout must not be 0 !!!)
 	+ statistics device names gets nulled
 	+ too much packet losses and disconnections
-	- double free
-	- wifi usb doesn't resume download
+	+ double free
+	+ wifi usb doesn't resume download
 
 plan:
 	+ device name wish list with given dmac, dip, dport
