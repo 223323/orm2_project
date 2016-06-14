@@ -33,7 +33,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 
 void print_help() {
 	printf("./project client dev1,...,devn dmac,... dip,... dport,... input_file\n");
-	printf("./project server dev1,...,devn output_file\n");
+	printf("./project server dev1,...,devn\n");
 	printf("./project listen dev bpf_filter\n");
 	printf("./project list\n");
 	printf("./project test\n");

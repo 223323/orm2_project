@@ -25,11 +25,8 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 		clock_gettime(CLOCK_MONOTONIC,  &ts2);
 		elapsed1 = ts2.tv_sec + (double)ts2.tv_nsec / 1e9;
 		while(elapsed - elapsed1 < 0.5) {
-		// clock_t clk = clock();
-		// while(clock() - clk < CLOCKS_PER_SEC/2) {
 			clock_gettime(CLOCK_MONOTONIC,  &ts);
 			elapsed = ts.tv_sec + (double)ts.tv_nsec / 1e9;
-			// printf("%d\n", (int)clock());
 			// wait for ack
 			const u_char * data = pcap_next(dev->pcap_handle, &hdr);
 			udp_packet* udp_pkt = (udp_packet*)data;
@@ -38,15 +35,12 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 			Packet* pkt = (Packet*)udp_pkt->data;
 
 			if(pkt->type == pkt_type_ack && pkt->id == id) {
-				// printf("packet ack recvd %s (%d)\n", dev->name, id);
 				return 1;
 				break;
 			}
 
 		}
 	}
-	// printf("pkt lost/error %s\n", dev->name);
-	// usleep(10000000);
 	return 0;
 }
 

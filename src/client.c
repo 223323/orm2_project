@@ -11,6 +11,8 @@
 
 static int min(int a, int b) { return a < b ? a : b; }
 
+int termination_counter = 0;
+
 typedef struct shared_context {
 	int sent_init_packet;
 	FILE *file;
@@ -53,15 +55,12 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	int n_devices;
 	dev_context* devices = load_devices(devlist, &n_devices);
 
-	printw("loaded %d devices\n", n_devices);
-	printw("loaded devices are: ");
 	list_devices(devices, n_devices);
-	printw("\n");
 
 	shared_context shared_ctx;
 	FILE* f = fopen(transfer_file, "rb");
 	if(!f) {
-		printw("file %s not found\n", transfer_file);
+		printf("file %s not found\n", transfer_file);
 		return -1;
 	}
 	fseek(f, 0, SEEK_END);
@@ -77,7 +76,6 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 
 	int blocks = shared_ctx.file_size/BLOCK_SIZE + 1;
 	shared_ctx.num_blocks = blocks;
-	printw("preparing to send %d blocks of size %d\n", blocks, BLOCK_SIZE);
 	for(i=0; i < blocks; i++) {
 		queue_push(shared_ctx.q, i);
 	}
@@ -133,11 +131,11 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 
 		if(is_udp_version) {
 			if(t_ip == 0) {
-				printw("Error: not given enough ip addresses\n");
+				printf("Error: not given enough ip addresses\n");
 				exit(-1);
 			}
 			if(t_port == 0) {
-				printw("Error: not given enough ports\n");
+				printf("Error: not given enough ports\n");
 				exit(-1);
 			}
 
@@ -155,6 +153,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 		thrd_create(&thread[i], (thrd_start_t)client_thread, ctx);
 	}
 
+	// print status
 	while(!shared_ctx.done) {
 		erase();
 		for(i=0; i < n_devices; i++) {
@@ -163,6 +162,9 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 				ctx->sent, ctx->lost);
 		}
 		printw("total: %d/%d\n", shared_ctx.sent, shared_ctx.num_blocks);
+		if(termination_counter > 0) {
+			printw("no connection, closing program after %d seconds\n", termination_counter);
+		}
 		refresh();
 		usleep(100000);
 	}
@@ -183,15 +185,15 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 thrd_t count_thread;
 
 void countdown_thread(int *active_devices) {
-	int counter=10;
+	termination_counter = 10;
 	while(*active_devices == 0) {
-		printw("%d until termination\n", counter);
 		usleep(1000000); // 1 sec
-		if(--counter <= 0) {
-			printw("no connection, program terminated\n");
+		if(--termination_counter <= 0) {
+			printf("no connection, program terminated\n");
 			exit(-1);
 		}
 	}
+	termination_counter = 0;
 }
 
 #define SEND_PACKET_AND_WAIT_ACK(pkt) 											\
@@ -293,6 +295,7 @@ void client_thread(thread_context* ctx) {
 
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
 
+			// chunks
 			if(shared->chunk_offset < 0 || processing_block*BLOCK_SIZE < shared->chunk_offset ||
 				(processing_block+1)*BLOCK_SIZE > shared->chunk_offset+CHUNK_SIZE) {
 				shared->chunk_offset = processing_block*BLOCK_SIZE;
@@ -314,9 +317,11 @@ void client_thread(thread_context* ctx) {
 				shared->chunk+(processing_block*BLOCK_SIZE-shared->chunk_offset), data_length);
 			pkt_data.size = PACKET_HEADER_SIZE + PACKET_DATA_HEADER_SIZE + data_length;
 			SEND_PACKET_AND_WAIT_ACK(&pkt_data);
+			
 			mtx_lock(&shared->mutex);
 			shared->sent++;
 			mtx_unlock(&shared->mutex);
+			
 			ctx->sent++;
 			processing_block = -1;
 		}

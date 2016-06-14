@@ -263,7 +263,6 @@ int validated_packet(udp_packet *pkt) {
 	Packet *mypkt = (Packet*)pkt->data;
 	if (!(data_len >= 8 && mypkt->signature == SIGNATURE && data_len <= UDP_PACKET_DATA_SIZE)) return 0;
 
-	// TODO: validate checksums
 	int udp_len = htons(pkt->udp.len);
 	u_short pkt_crc = pkt->udp.crc;
 	pkt->udp.crc = 0;
