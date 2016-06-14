@@ -52,7 +52,7 @@ void client_thread(thread_context* ctx);
 #define STATISTICS
 
 #define CHUNK_SIZE 1000000
-#define BLOCK_SIZE 800
+#define BLOCK_SIZE 1000
 int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, char *transfer_file) {
 
 	int i=0;
