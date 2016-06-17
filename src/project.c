@@ -46,7 +46,7 @@ void test();
 
 int main(int argc, char *argv[])
 {
-	
+
 	if(argc <= 1) print_help();
 	if(!strcmp(argv[1], "server") && argc == 4) {
 		char* devlist = argv[2];
@@ -54,18 +54,18 @@ int main(int argc, char *argv[])
 		if(port < 1000 || port > 65535) return -1;
 		return setup_server(devlist, port);
 	} else if(!strcmp(argv[1],"client") && argc == 7) {
-		
+
 		char* devlist = argv[2];
 		char* dest_mac = argv[3];
 		char* dest_ip  = argv[4];
 		char* dest_port= argv[5];
 		char* transfer_file = argv[6];
-		
+
 		return setup_client(devlist, dest_mac, dest_ip, dest_port, transfer_file);
 	} else if(!strcmp(argv[1],"list") && argc == 2) {
 		list_all_devices();
 		return -1;
-		
+
 	} else if(!strcmp(argv[1],"listen") && argc == 4) {
 		setup_listen(argv[2], argv[3]);
 	} else if(!strcmp(argv[1],"test") && argc == 2) {
@@ -73,34 +73,22 @@ int main(int argc, char *argv[])
 	} else {
 		print_help();
 	}
-	
-	
+
+
 	return 0;
 }
 
 
+// tests
 void test_send_pkt() {
 	int t;
 	dev_context* dev = load_devices("wlan0", &t);
-	send_packet(dev, MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, "heheeh", 5);
+	char send_str[] = "test packet";
+	send_packet(dev, MAC(00:90:a2:cd:d4:49), IP_ADDR(10.0.0.1), 5000, send_str, strlen(send_str));
 }
 
 void test() {
 	int i;
-	
-	// printf("testing queue\n");
-	// queue* q = queue_init();
-	// printf("enqueue test\n");
-	// for(i=0; i < 10; i++) {
-		// printf("%d ", i);
-		// queue_push(q, i);
-	// }
-	// printf("\ndequeue test\n");
-	// for(i=0; i < 10; i++) {
-		// printf("%d ", queue_pop(q));
-	// }
-	// printf("\n");
-	
 	test_send_pkt();
 }
 

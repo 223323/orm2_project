@@ -2,7 +2,6 @@ TODO:
 	+ client (basic sending packets)
 	+ server (basic receiving packets)
 	+ data queue
-	+ data queue multi threaded
 	+ tinycthread multi threading
 	+ listen
 	+ test sending packet by make_packet
@@ -19,6 +18,10 @@ TODO:
 	+ consistent print status of all devices
 	+ ip validation
 	- port validation
+	+ add control packet (control how much packets to send before waiting for ack,
+		client will dictate based on rate of packet losses, function of last packet
+		loss time)
+	+ send multiple packets before receiving 1 ack for all of them in single packet
 
 main:
 	+ server
@@ -27,8 +30,6 @@ main:
 BUGS:
 	+ data not received correctly
 	+ program not closed on transfer complete
-		possibly other thread didn't exit
-		(timeout must not be 0 !!!)
 	+ statistics device names gets nulled
 	+ too much packet losses and disconnections
 	+ double free
@@ -36,11 +37,11 @@ BUGS:
 
 plan:
 	+ device name wish list with given dmac, dip, dport
-	+ when device is disconnected use sleep with loop to periodically check whether
+	+ when device is disconnected use loop with sleep to periodically check whether
 		it can be opened
 	+ shared thread context { mutex, FILE **f, ... }
 	+ specific thread context
-	* fix connected, disconnected philosophy
+	+ fix connected, disconnected philosophy
 		disconnected on not getting ack
 		connected on receiving ack
 

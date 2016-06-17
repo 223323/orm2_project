@@ -31,7 +31,7 @@ int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_
 			const u_char * data = pcap_next(dev->pcap_handle, &hdr);
 			udp_packet* udp_pkt = (udp_packet*)data;
 			if(!validated_packet(udp_pkt)) continue;
-			
+
 			if(!validate_ip(dev,udp_pkt)) continue;
 
 			Packet* pkt = (Packet*)udp_pkt->data;
@@ -64,4 +64,8 @@ void reply_ack(dev_context*dev, udp_packet* udp) {
 	Packet *reply_to_packet = (Packet*)udp->data;
 	ack_pkt.id = reply_to_packet->id;
 	reply_packet(dev, udp, (char*)&ack_pkt, PACKET_HEADER_SIZE);
+}
+
+Packet packet_init(pkt_type type) {
+	return (Packet){.signature = SIGNATURE, .type = type};
 }

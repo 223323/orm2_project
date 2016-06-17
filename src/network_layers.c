@@ -226,7 +226,7 @@ void send_packet(dev_context* dev, mac_address dmac, ip_address dip, u_int dport
 	mac_address mac_addr;
 	debug(printf("\ngetting mac address ... "));
 	get_mac_address(dev->name, &mac_addr);
-	
+
 	debug(
 		printf("\nmac address is: ");
 		for(i=0; i < 6; i++) {
@@ -273,7 +273,7 @@ int packet_get_data_length(udp_packet *pkt) {
 	return htons(pkt->udp.len) - sizeof(udp_header);
 }
 
-// http://www.hackersdelight.org/hdcodetxt/crc.c.txt
+// source: http://www.hackersdelight.org/hdcodetxt/crc.c.txt
 unsigned int crc32c(unsigned char *message) {
    int i, j;
    unsigned int byte, crc, mask;

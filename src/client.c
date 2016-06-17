@@ -10,10 +10,11 @@
 #include <curses.h>
 
 static int min(int a, int b) { return a < b ? a : b; }
+static int max(int a, int b) { return a > b ? a : b; }
 
 int termination_counter = 0;
 
-#define MAX_DEVICES 5
+
 
 
 typedef struct shared_context {
@@ -49,10 +50,18 @@ typedef struct thread_context {
 
 void client_thread(thread_context* ctx);
 
-#define STATISTICS
-
+#define STATISTICS 1
+#define MAX_DEVICES 5
 #define CHUNK_SIZE 1000000
 #define BLOCK_SIZE 1000
+#define MAX_PACKETS_IN_ROW 10
+
+int get_num_packets_in_row(double time_since_last_packet_loss) {
+	return min(1, max(MAX_PACKETS_IN_ROW,
+		time_since_last_packet_loss * time_since_last_packet_loss // t^2
+	));
+}
+
 int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, char *transfer_file) {
 
 	int i=0;
@@ -162,7 +171,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	struct timespec ts2;
 	clock_gettime(CLOCK_MONOTONIC,  &ts2);
 	double ref = ts2.tv_sec + ts2.tv_nsec / 1e9;
-	
+
 	int pkts[MAX_DEVICES];
 	int pps[MAX_DEVICES];
 	int pps_total=0;
@@ -182,7 +191,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 				pkts[i] = ctx->sent;
 				pps[i] = ctx->sent - old;
 			}
-			
+
 			printw("[%s] %s sent: %d loss: %d,  %dkB/s\n", ctx->dev->name, ctx->connected ? "connected" : "disconnected",
 				ctx->sent, ctx->lost, pps[i]*BLOCK_SIZE/1000);
 		}
@@ -234,6 +243,8 @@ void countdown_thread(int *active_devices) {
 #define SEND_PACKET_AND_WAIT_ACK(pkt) 											\
 	if(reliably_send_packet_udp(dev, pkt, ctx->mac, ctx->ip, ctx->port) == 0) { \
 		ctx->lost++;															\
+		ctx->lost++;															\
+		packets_in_row = 0;														\
 		mtx_lock(&shared->mutex);												\
 		if(ctx->connected) {                                                    \
 			ctx->connected = 0;													\
@@ -247,6 +258,9 @@ void countdown_thread(int *active_devices) {
 		if(processing_block != -1) { 											\
 			queue_push(shared->q, processing_block);							\
 			processing_block = -1;												\
+			while(queue_num_elements(q) > 0) {									\
+				queue_push(shared->q, queue_pop(q));							\
+			}																	\
 		}		                                                                \
 		mtx_unlock(&shared->mutex);                                         	\
 		if(strstr(pcap_geterr(dev->pcap_handle), "No such device")||			\
@@ -266,9 +280,22 @@ void countdown_thread(int *active_devices) {
 	}																			\
 
 
+double get_time() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC,  &ts);
+	return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
 void client_thread(thread_context* ctx) {
 	dev_context* dev = ctx->dev;
 	shared_context* shared = ctx->shared;
+
+	int i;
+	queue* q = queue_init();
+	int packets_in_row = 1;
+	int send_control_pkt = 1;
+	int packets_to_send = 0;
+	double last_error_time = get_time();
 
 	if(!dev->pcap_handle) {
 		if(!device_reopen(dev, &shared->done))
@@ -281,11 +308,14 @@ void client_thread(thread_context* ctx) {
 	device_set_filter(dev, "ip and udp");
 	mtx_unlock(&shared->mutex);
 
-	int num_elements;
 	int processing_block = -1;
 	int data_length;
 
 	while(!shared->done) {
+		if(queue_num_elements(q) > 0) {
+			processing_block = queue_pop(q);
+		}
+
 		mtx_lock(&shared->mutex);
 		if(shared->sent_init_packet == 0) {
 			Packet pkt_init;
@@ -303,7 +333,24 @@ void client_thread(thread_context* ctx) {
 			continue;
 		}
 
-		if(queue_num_elements(shared->q) > 0) {
+
+		if(processing_block == -1 && queue_num_elements(shared->q) > 0) {
+			if(packets_in_row != MAX_PACKETS_IN_ROW) {
+				int new_packets_in_row = get_num_packets_in_row(get_time() - last_error_time);
+				if(new_packets_in_row != packets_in_row) {
+					packets_in_row = new_packets_in_row;
+					send_control_pkt = 1;
+				}
+			}
+
+			for(i=0; i < packets_in_row && queue_num_elements(shared->q) > 0; i++) {
+				queue_push(q, queue_pop(shared->q));
+			}
+			if(queue_num_elements(q) < packets_in_row) {
+				packets_in_row = queue_num_elements(q);
+				send_control_pkt = 1;
+			}
+			packets_to_send = packets_in_row;
 			processing_block = queue_pop(shared->q);
 		} else {
 			if(ctx->connected)
@@ -327,6 +374,7 @@ void client_thread(thread_context* ctx) {
 				return;
 			}
 		}
+
 		if(processing_block >= 0) {
 
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
@@ -342,9 +390,15 @@ void client_thread(thread_context* ctx) {
 		mtx_unlock(&shared->mutex);
 
 		if(processing_block != -1) {
-			Packet pkt_data;
-			pkt_data.signature = SIGNATURE;
-			pkt_data.type = pkt_type_data;
+
+			if(send_control_pkt) {
+				Packet pkt_control = packet_init(pkt_type_control);
+				pkt_control.packets_in_row = packets_in_row;
+				SEND_PACKET_AND_WAIT_ACK(&pkt_control);
+				send_control_pkt = 0;
+			}
+
+			Packet pkt_data = packet_init(pkt_type_data);
 			pkt_data.data.size = data_length;
 			pkt_data.data.offset = processing_block*BLOCK_SIZE;
 			assert(processing_block*BLOCK_SIZE+BLOCK_SIZE <= shared->chunk_offset+CHUNK_SIZE);
@@ -352,12 +406,17 @@ void client_thread(thread_context* ctx) {
 			memcpy(pkt_data.data.bytes,
 				shared->chunk+(processing_block*BLOCK_SIZE-shared->chunk_offset), data_length);
 			pkt_data.size = PACKET_HEADER_SIZE + PACKET_DATA_HEADER_SIZE + data_length;
-			SEND_PACKET_AND_WAIT_ACK(&pkt_data);
-			
+
+			if(--packets_to_send == 0) {
+				SEND_PACKET_AND_WAIT_ACK(&pkt_data);
+			} else {
+				send_packet(dev, ctx->mac, ctx->ip, ctx->port, (char*)&pkt_data, pkt_data.size);
+			}
+
 			mtx_lock(&shared->mutex);
 			shared->sent++;
 			mtx_unlock(&shared->mutex);
-			
+
 			ctx->sent++;
 			processing_block = -1;
 		}

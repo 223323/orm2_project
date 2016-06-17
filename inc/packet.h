@@ -10,6 +10,7 @@ typedef enum _pkt_type {
 	pkt_type_ack=1,
 	pkt_type_data,
 	pkt_type_init,
+	pkt_type_control,
 	pkt_type_eof
 } pkt_type;
 
@@ -35,6 +36,7 @@ typedef struct _Packet {
 			char bytes[UDP_PACKET_DATA_SIZE-500];
 		} data;
 		int ack_state;
+		int packets_in_row;
 	};
 
 } Packet;
@@ -42,5 +44,5 @@ typedef struct _Packet {
 int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_address ip, int port);
 void reply_ack(dev_context*dev, udp_packet* udp);
 char validate_ip(dev_context*dev, udp_packet* udp);
-
+Packet packet_init(pkt_type type);
 #endif
