@@ -40,6 +40,7 @@ typedef struct thread_context {
 	int sent;
 	int lost;
 	int connected;
+	int packets_in_row;
 
 	// device specific
 	int use_udp;
@@ -192,8 +193,10 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 				pps[i] = ctx->sent - old;
 			}
 
-			printw("[%s] %s sent: %d loss: %d,  %dkB/s\n", ctx->dev->name, ctx->connected ? "connected" : "disconnected",
-				ctx->sent, ctx->lost, pps[i]*BLOCK_SIZE/1000);
+			printw("[%s] %s sent: %d loss: %d, N: %d,  %dkB/s\n",
+				ctx->dev->name, ctx->connected ? "connected" : "disconnected",
+				ctx->sent, ctx->lost, ctx->packets_in_row,
+				pps[i]*BLOCK_SIZE/1000);
 		}
 		int old = pkts_total;
 		if(secondPassed) {
@@ -243,8 +246,8 @@ void countdown_thread(int *active_devices) {
 #define SEND_PACKET_AND_WAIT_ACK(pkt) 											\
 	if(reliably_send_packet_udp(dev, pkt, ctx->mac, ctx->ip, ctx->port) == 0) { \
 		ctx->lost++;															\
-		ctx->lost++;															\
-		packets_in_row = 0;														\
+		last_error_time = get_time();											\
+		ctx->packets_in_row = 1;												\
 		mtx_lock(&shared->mutex);												\
 		if(ctx->connected) {                                                    \
 			ctx->connected = 0;													\
@@ -292,7 +295,7 @@ void client_thread(thread_context* ctx) {
 
 	int i;
 	queue* q = queue_init();
-	int packets_in_row = 1;
+	ctx->packets_in_row = 1;
 	int send_control_pkt = 1;
 	int packets_to_send = 0;
 	double last_error_time = get_time();
@@ -335,22 +338,22 @@ void client_thread(thread_context* ctx) {
 
 
 		if(processing_block == -1 && queue_num_elements(shared->q) > 0) {
-			if(packets_in_row != MAX_PACKETS_IN_ROW) {
+			if(ctx->packets_in_row != MAX_PACKETS_IN_ROW) {
 				int new_packets_in_row = get_num_packets_in_row(get_time() - last_error_time);
-				if(new_packets_in_row != packets_in_row) {
-					packets_in_row = new_packets_in_row;
+				if(new_packets_in_row != ctx->packets_in_row) {
+					ctx->packets_in_row = new_packets_in_row;
 					send_control_pkt = 1;
 				}
 			}
 
-			for(i=0; i < packets_in_row && queue_num_elements(shared->q) > 0; i++) {
+			for(i=0; i < ctx->packets_in_row && queue_num_elements(shared->q) > 0; i++) {
 				queue_push(q, queue_pop(shared->q));
 			}
-			if(queue_num_elements(q) < packets_in_row) {
-				packets_in_row = queue_num_elements(q);
+			if(queue_num_elements(q) < ctx->packets_in_row) {
+				ctx->packets_in_row = queue_num_elements(q);
 				send_control_pkt = 1;
 			}
-			packets_to_send = packets_in_row;
+			packets_to_send = ctx->packets_in_row;
 			processing_block = queue_pop(shared->q);
 		} else {
 			if(ctx->connected)
@@ -393,7 +396,7 @@ void client_thread(thread_context* ctx) {
 
 			if(send_control_pkt) {
 				Packet pkt_control = packet_init(pkt_type_control);
-				pkt_control.packets_in_row = packets_in_row;
+				pkt_control.packets_in_row = ctx->packets_in_row;
 				SEND_PACKET_AND_WAIT_ACK(&pkt_control);
 				send_control_pkt = 0;
 			}
