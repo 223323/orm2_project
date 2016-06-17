@@ -84,7 +84,8 @@ static void server_thread(struct thread_context* ctx) {
 
 	int num_parts;
 	int filesize;
-
+	int packets_in_row = 1;
+	int packets_received = 0;
 	int inited = 0;
 	int timeout_num = 0;
 	struct pcap_pkthdr hdr;
@@ -97,14 +98,14 @@ static void server_thread(struct thread_context* ctx) {
 		if(!data) {
 			// printf("no data (%s)\n", pcap_geterr(dev->pcap_handle));
 			usleep(1000);
-			if(strstr(pcap_geterr(dev->pcap_handle), "No such device") || 
+			if(strstr(pcap_geterr(dev->pcap_handle), "No such device") ||
 				strstr(pcap_geterr(dev->pcap_handle), "went down")) {
-				/* only if device card is unplugged (like usb wifi)	*/	
+				/* only if device card is unplugged (like usb wifi)	*/
 				// printf("no such device\n");
-				if(!device_reopen(dev, &shared->done)) {				
-					return;												
-				}														
-			}	
+				if(!device_reopen(dev, &shared->done)) {
+					return;
+				}
+			}
 			continue;
 		}
 		udp_packet* udp_pkt = (udp_packet*)data;
@@ -112,7 +113,7 @@ static void server_thread(struct thread_context* ctx) {
 		if(!validated_packet(udp_pkt)) {
 			continue;
 		}
-		
+
 		if(!validate_ip(dev, udp_pkt)) {
 			continue;
 		}
@@ -146,8 +147,9 @@ static void server_thread(struct thread_context* ctx) {
 		}
 
 		if(pkt->type == pkt_type_data) {
+			if(++packets_received == packets_in_row)
+				reply_ack(dev, udp_pkt);
 
-			reply_ack(dev, udp_pkt);
 			//~ printf("receiving data pkt (%d) %d %d \n", pkt->id, pkt->data.offset, pkt->data.size);
 			if(pkt->data.offset + pkt->data.size > shared->file_size) {
 				printf("max file size exceeded \n");
@@ -188,6 +190,9 @@ static void server_thread(struct thread_context* ctx) {
 				reply_ack(dev, udp_pkt);
 			}
 			return;
+		} else if(pkt->type == pkt_type_control) {
+			packets_in_row = pkt->packets_in_row;
+			reply_ack(dev, udp_pkt);
 		}
 	}
 }
