@@ -14,7 +14,7 @@ typedef struct _dev_context {
 dev_context* load_devices(char* devlist, int *n_devices);
 void list_devices(dev_context* devs, int n_devices);
 void list_all_devices();
-void device_set_filter(dev_context *dev, char* filter);
+int device_set_filter(dev_context *dev, char* filter);
 int try_open_device(dev_context* dev);
 int device_reopen(dev_context* dev, int *should_give_up);
 #endif

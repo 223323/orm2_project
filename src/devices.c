@@ -38,8 +38,8 @@ void list_all_devices() {
 	pcap_freealldevs(alldevs);
 }
 
-void device_set_filter(dev_context *dev, char* filter) {
-	if(!dev->pcap_handle) return;
+int device_set_filter(dev_context *dev, char* filter) {
+	if(!dev->pcap_handle) return 0;
 	struct bpf_program fcode;
 	bpf_u_int32 netmask;
 
@@ -55,14 +55,15 @@ void device_set_filter(dev_context *dev, char* filter) {
 	if (pcap_compile(dev->pcap_handle, &fcode, filter, 1, netmask) <0 )
 	{
 		fprintf(stderr,"\nUnable to compile the packet filter. Check the syntax.\n");
-		return;
+		return 0;
 	}
 
 	if (pcap_setfilter(dev->pcap_handle, &fcode)<0)
 	{
 		fprintf(stderr,"\nError setting the filter.\n");
-		return;
+		return 0;
 	}
+	return 1;
 }
 
 int try_open_device(dev_context* dev) {

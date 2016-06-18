@@ -14,7 +14,7 @@
 int reliably_send_packet_udp(dev_context* dev, Packet* pkt, mac_address mac, ip_address ip, int port) {
 	int i;
 	struct pcap_pkthdr hdr;
-	int id = pkt->id = rand()%10000;
+	int id = pkt->id;
 	struct timespec ts;
 	struct timespec ts2;
 	double elapsed=0;
@@ -67,5 +67,14 @@ void reply_ack(dev_context*dev, udp_packet* udp) {
 }
 
 Packet packet_init(pkt_type type) {
-	return (Packet){.signature = SIGNATURE, .type = type};
+	Packet p = (Packet){.signature = SIGNATURE, .type = type, .id = rand()%10000};
+	p.size = PACKET_HEADER_SIZE;
+	if(type == pkt_type_data) {
+		p.size += PACKET_DATA_HEADER_SIZE;
+	} else if(type == pkt_type_control || type == pkt_type_ack) {
+		p.size += sizeof(int);
+	} else if(type == pkt_type_init) {
+		p.size += PACKET_INIT_HEADER_SIZE;
+	}
+	return p;
 }
