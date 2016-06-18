@@ -147,10 +147,11 @@ static void server_thread(struct thread_context* ctx) {
 		}
 
 		if(pkt->type == pkt_type_data) {
-			if(++packets_received == packets_in_row)
+			if(++packets_received == packets_in_row) {
 				reply_ack(dev, udp_pkt);
+				packets_received = 0;
+			}
 
-			//~ printf("receiving data pkt (%d) %d %d \n", pkt->id, pkt->data.offset, pkt->data.size);
 			if(pkt->data.offset + pkt->data.size > shared->file_size) {
 				printf("max file size exceeded \n");
 				return;
@@ -183,7 +184,7 @@ static void server_thread(struct thread_context* ctx) {
 			mtx_unlock(&shared->mutex);
 
 		} else if(pkt->type == pkt_type_eof) {
-			printf("data transfered leaving %s\n", dev->name);
+			printf("data transfered, leaving %s\n", dev->name);
 			if(!shared->done) {
 				shared->done = 1;
 				fclose(shared->file);
@@ -192,6 +193,7 @@ static void server_thread(struct thread_context* ctx) {
 			return;
 		} else if(pkt->type == pkt_type_control) {
 			packets_in_row = pkt->packets_in_row;
+			packets_received = 0;
 			reply_ack(dev, udp_pkt);
 		}
 	}
