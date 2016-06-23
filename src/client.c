@@ -18,7 +18,7 @@ typedef struct shared_context {
 	int sent_init_packet;
 	FILE *file;
 	char filename[200];
-	int file_size;
+	size_t file_size;
 
 
 	int num_blocks;
@@ -42,7 +42,7 @@ typedef struct thread_context {
 	int send_control_pkt;
 	queue* q;
 	char *chunk;
-	unsigned int chunk_offset;
+	size_t chunk_offset;
 
 	// device specific
 	int use_udp;
@@ -413,6 +413,8 @@ void client_thread(thread_context* ctx) {
 
 			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
 
+			if(data_length < 0) continue;
+
 			// chunks
 			if(processing_block*BLOCK_SIZE < ctx->chunk_offset ||
 				(processing_block+1)*BLOCK_SIZE >= ctx->chunk_offset+CHUNK_SIZE) {
@@ -431,6 +433,12 @@ void client_thread(thread_context* ctx) {
 				ctx->send_control_pkt = 0;
 			}
 
+			if(processing_block < 0) {
+				continue;
+			}
+
+			printf("block %d\n", processing_block);
+
 			Packet pkt_data = packet_init(pkt_type_data);
 			pkt_data.size += data_length;
 			pkt_data.data.size = data_length;
@@ -438,6 +446,7 @@ void client_thread(thread_context* ctx) {
 			assert(processing_block*BLOCK_SIZE+BLOCK_SIZE <= ctx->chunk_offset+CHUNK_SIZE);
 			assert(processing_block*BLOCK_SIZE >= ctx->chunk_offset);
 			mtx_lock(&shared->mutex);
+			printf("writing to %d , 0x%X , %d, %d\n", processing_block, chunk+(processing_block*BLOCK_SIZE-ctx->chunk_offset), processing_block*BLOCK_SIZE-ctx->chunk_offset, data_length);
 			memcpy(pkt_data.data.bytes, chunk+(processing_block*BLOCK_SIZE-ctx->chunk_offset), data_length);
 			mtx_unlock(&shared->mutex);
 

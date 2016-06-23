@@ -25,13 +25,13 @@ typedef struct _Packet {
 	union {
 		struct IntroPacket {
 			#define PACKET_INIT_HEADER_SIZE (sizeof(int))
-			int file_size;
+			size_t file_size;
 			char filename[100];
 		} init;
 		struct DataPacket {
 			#define PACKET_DATA_HEADER_SIZE (sizeof(int)+sizeof(int))
 			#define PACKET_DATA_MAX_BYTES (UDP_PACKET_DATA_SIZE-500)
-			int offset;
+			size_t offset;
 			int size;
 			char bytes[UDP_PACKET_DATA_SIZE-500];
 		} data;

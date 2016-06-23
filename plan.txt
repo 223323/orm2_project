@@ -34,6 +34,8 @@ BUGS:
 	+ too much packet losses and disconnections
 	+ double free
 	+ wifi usb doesn't resume download
+	+ client big files not working
+	- server big files not working
 
 plan:
 	+ device name wish list with given dmac, dip, dport
