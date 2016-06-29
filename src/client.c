@@ -9,7 +9,7 @@
 #include <libgen.h>
 #include <curses.h>
 
-static int min(int a, int b) { return a < b ? a : b; }
+static int min(size_t a, size_t b) { return a < b ? a : b; }
 static int max(int a, int b) { return a > b ? a : b; }
 
 int termination_counter = 0;
@@ -344,8 +344,10 @@ void client_thread(thread_context* ctx) {
 
 		Packet pkt_init = packet_init(pkt_type_init);
 		strcpy(pkt_init.init.filename, basename(shared->filename));
+		// printf("sending file %s\n", pkt_init.init.filename);
+		sleep(2);
 		pkt_init.init.file_size = shared->file_size;
-		pkt_init.size += strlen(pkt_init.init.filename) + 1;
+		pkt_init.size += strlen(pkt_init.init.filename);
 
 		SEND_PACKET_AND_WAIT_ACK(&pkt_init);
 		shared->sent_init_packet = 1;
@@ -411,20 +413,16 @@ void client_thread(thread_context* ctx) {
 
 		if(processing_block >= 0) {
 
-			data_length = min(BLOCK_SIZE, shared->file_size-processing_block*BLOCK_SIZE);
+			data_length = min( BLOCK_SIZE, shared->file_size-((size_t)(processing_block*BLOCK_SIZE)) );
 
-			if(data_length < 0) continue;
-
-			// chunks
-			if(processing_block*BLOCK_SIZE < ctx->chunk_offset ||
-				(processing_block+1)*BLOCK_SIZE >= ctx->chunk_offset+CHUNK_SIZE) {
-
-				ctx->chunk_offset = processing_block*BLOCK_SIZE;
-				mtx_lock(&shared->mutex);
-				fseek(shared->file, ctx->chunk_offset, SEEK_SET);
-				fread(chunk, 1, CHUNK_SIZE, shared->file);
-				mtx_unlock(&shared->mutex);
+			if(data_length <= 0) {
+				printf("data_length: %d\n"
+					   "file_size: %u\n"
+					   "processing_block: %d\n", data_length, shared->file_size, processing_block);
+				exit(-1);
 			}
+
+			assert(data_length > 0);
 
 			if(ctx->send_control_pkt) {
 				Packet pkt_control = packet_init(pkt_type_control);
@@ -434,20 +432,39 @@ void client_thread(thread_context* ctx) {
 			}
 
 			if(processing_block < 0) {
+				printf("processing_block = %d\n", processing_block);
 				continue;
 			}
 
-			printf("block %d\n", processing_block);
+			// chunks
+			if(processing_block*BLOCK_SIZE < ctx->chunk_offset ||
+				(processing_block+1)*BLOCK_SIZE >= ctx->chunk_offset+CHUNK_SIZE) {
+
+				ctx->chunk_offset = (size_t)processing_block*BLOCK_SIZE;
+				mtx_lock(&shared->mutex);
+				fseek(shared->file, ctx->chunk_offset, SEEK_SET);
+				fread(chunk, 1, CHUNK_SIZE, shared->file);
+				mtx_unlock(&shared->mutex);
+			}
+
+			// printf("block %d\n", processing_block);
 
 			Packet pkt_data = packet_init(pkt_type_data);
 			pkt_data.size += data_length;
 			pkt_data.data.size = data_length;
 			pkt_data.data.offset = processing_block*BLOCK_SIZE;
-			assert(processing_block*BLOCK_SIZE+BLOCK_SIZE <= ctx->chunk_offset+CHUNK_SIZE);
-			assert(processing_block*BLOCK_SIZE >= ctx->chunk_offset);
+
+			if(!((size_t)processing_block*BLOCK_SIZE+BLOCK_SIZE <= ctx->chunk_offset+CHUNK_SIZE)) {
+				printf("ASSERT FAIL: \n"
+					"processing_block: %d\n"
+					"ctx->chunk_offset: %zd\n");
+				exit(-1);
+			}
+			assert((size_t)processing_block*BLOCK_SIZE+BLOCK_SIZE <= ctx->chunk_offset+CHUNK_SIZE);
+			assert((size_t)processing_block*BLOCK_SIZE >= ctx->chunk_offset);
 			mtx_lock(&shared->mutex);
-			printf("writing to %d , 0x%X , %d, %d\n", processing_block, chunk+(processing_block*BLOCK_SIZE-ctx->chunk_offset), processing_block*BLOCK_SIZE-ctx->chunk_offset, data_length);
-			memcpy(pkt_data.data.bytes, chunk+(processing_block*BLOCK_SIZE-ctx->chunk_offset), data_length);
+			// printf("writing to %d , 0x%X , %d, %d\n", processing_block, chunk+(processing_block*BLOCK_SIZE-ctx->chunk_offset), processing_block*BLOCK_SIZE-ctx->chunk_offset, data_length);
+			memcpy(pkt_data.data.bytes, chunk+((size_t)processing_block*BLOCK_SIZE-ctx->chunk_offset), data_length);
 			mtx_unlock(&shared->mutex);
 
 			if(--packets_to_send == 0) {

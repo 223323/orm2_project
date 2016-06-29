@@ -24,12 +24,12 @@ typedef struct _Packet {
 	int id;
 	union {
 		struct IntroPacket {
-			#define PACKET_INIT_HEADER_SIZE (sizeof(int))
+			#define PACKET_INIT_HEADER_SIZE (sizeof(size_t))
 			size_t file_size;
 			char filename[100];
 		} init;
 		struct DataPacket {
-			#define PACKET_DATA_HEADER_SIZE (sizeof(int)+sizeof(int))
+			#define PACKET_DATA_HEADER_SIZE (sizeof(size_t)+sizeof(int))
 			#define PACKET_DATA_MAX_BYTES (UDP_PACKET_DATA_SIZE-500)
 			size_t offset;
 			int size;
