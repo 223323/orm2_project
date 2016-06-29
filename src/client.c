@@ -1,3 +1,4 @@
+#define _FILE_OFFSET_BITS 64
 #include "tinycthread.h"
 #include "devices.h"
 #include "packet.h"
@@ -86,7 +87,7 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	}
 	fseek(f, 0, SEEK_END);
 	strcpy(shared_ctx.filename, transfer_file);
-	shared_ctx.file_size = ftell(f);
+	shared_ctx.file_size = ftello(f);
 	fseek(f, 0, SEEK_SET);
 	shared_ctx.file = f;
 	shared_ctx.sent_init_packet = 0;
@@ -96,8 +97,10 @@ int setup_client(char *devlist, char *dmaclist, char *diplist, char* dportlist, 
 	int blocks = shared_ctx.file_size/BLOCK_SIZE + 1;
 	shared_ctx.num_blocks = blocks;
 	for(i=0; i < blocks; i++) {
+	// for(i=blocks-1; i >= 0; i--) { // try reverse
 		queue_push(shared_ctx.q, i);
 	}
+
 	refresh();
 	mtx_init(&shared_ctx.mutex, mtx_plain);
 
@@ -413,7 +416,7 @@ void client_thread(thread_context* ctx) {
 
 		if(processing_block >= 0) {
 
-			data_length = min( BLOCK_SIZE, shared->file_size-((size_t)(processing_block*BLOCK_SIZE)) );
+			data_length = min( BLOCK_SIZE, shared->file_size-(size_t)processing_block*BLOCK_SIZE );
 
 			if(data_length <= 0) {
 				printf("data_length: %d\n"
@@ -442,7 +445,7 @@ void client_thread(thread_context* ctx) {
 
 				ctx->chunk_offset = (size_t)processing_block*BLOCK_SIZE;
 				mtx_lock(&shared->mutex);
-				fseek(shared->file, ctx->chunk_offset, SEEK_SET);
+				fseeko(shared->file, ctx->chunk_offset, SEEK_SET);
 				fread(chunk, 1, CHUNK_SIZE, shared->file);
 				mtx_unlock(&shared->mutex);
 			}
@@ -452,7 +455,7 @@ void client_thread(thread_context* ctx) {
 			Packet pkt_data = packet_init(pkt_type_data);
 			pkt_data.size += data_length;
 			pkt_data.data.size = data_length;
-			pkt_data.data.offset = processing_block*BLOCK_SIZE;
+			pkt_data.data.offset = (size_t)processing_block*BLOCK_SIZE;
 
 			if(!((size_t)processing_block*BLOCK_SIZE+BLOCK_SIZE <= ctx->chunk_offset+CHUNK_SIZE)) {
 				printf("ASSERT FAIL: \n"

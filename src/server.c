@@ -13,9 +13,9 @@ static int min(int a, int b) { return a < b ? a : b; }
 typedef struct shared_context {
 	int received_init_packet;
 	FILE *file;
-	int file_size;
+	size_t file_size;
 	mtx_t mutex;
-	int max_offset;
+	size_t max_offset;
 	int done;
 } shared_context;
 

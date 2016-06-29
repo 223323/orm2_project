@@ -22,6 +22,7 @@ TODO:
 		client will dictate based on rate of packet losses, function of last packet
 		loss time)
 	+ send multiple packets before receiving 1 ack for all of them in single packet
+	- server must have its buffer because fseek is slow especially when seeking offset > 2GB !!
 
 main:
 	+ server
