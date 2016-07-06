@@ -350,6 +350,7 @@ void client_thread(thread_context* ctx) {
 		// printf("sending file %s\n", pkt_init.init.filename);
 		sleep(2);
 		pkt_init.init.file_size = shared->file_size;
+		pkt_init.init.packet_size = BLOCK_SIZE;
 		pkt_init.size += strlen(pkt_init.init.filename);
 
 		SEND_PACKET_AND_WAIT_ACK(&pkt_init);

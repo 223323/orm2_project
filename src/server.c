@@ -19,7 +19,7 @@ static int min(int a, int b) { return a < b ? a : b; }
 #define BUFFER_SIZE 1000 // number of packets in buffer
 
 struct packet_buff {
-	int offset;
+	size_t offset;
 	int max_offset;
 	short *written_bytes;
 	char *buff;
