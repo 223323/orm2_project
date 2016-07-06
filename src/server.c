@@ -20,7 +20,7 @@ static int min(int a, int b) { return a < b ? a : b; }
 
 struct packet_buff {
 	size_t offset;
-	int max_offset;
+	size_t max_offset;
 	short *written_bytes;
 	char *buff;
 	int packet_size;
