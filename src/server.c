@@ -10,12 +10,82 @@
 
 static int min(int a, int b) { return a < b ? a : b; }
 
+
+
+#define MAX_FILE_SIZE 5000000000
+
+// ------ packet buffering
+
+#define BUFFER_SIZE 1000 // number of packets in buffer
+
+struct packet_buff {
+	int offset;
+	int max_offset;
+	short *written_bytes;
+	char *buff;
+	int packet_size;
+	int buffer_size;
+	FILE* file;
+};
+
+struct packet_buff init_packet_buff(int buffer_size, int packet_size, FILE* f) {
+	struct packet_buff buf;
+	buf.offset = 0;
+	buf.max_offset = buffer_size * packet_size;
+	buf.written_bytes = (short*)malloc(buffer_size*sizeof(short));
+	buf.buffer_size = buffer_size;
+	memset(buf.written_bytes, 0, buffer_size);
+	buf.buff = (char*)malloc(packet_size*buffer_size);
+	buf.packet_size = packet_size;
+	buf.file = f;
+	return buf;
+}
+
+void write_packets(struct packet_buff* buf) {
+	int i,a=-1,b,last=a,written_bytes;
+	fseek(buf->file, buf->offset, SEEK_SET);
+	for(i=0; i < BUFFER_SIZE; i++) {
+		if(a == -1 && buf->written_bytes[i] > 0) {
+			a = i;
+			written_bytes = buf->written_bytes[i];
+		} else if(a != -1 && buf->written_bytes[i] != written_bytes) {
+			b = i - 1;
+			
+			fseek(buf->file, (a-last)*buf->packet_size, SEEK_CUR); // maybe SEEK_CUR is faster than SEEK_SET?
+			fwrite(buf->buff + (buf->packet_size*a), 1, buf->packet_size*(b-a), buf->file);
+			memset(buf->written_bytes + a, 0, b-a); // clean the written_bytes marks
+			
+			last = a;
+			a = -1;
+		}
+	}
+}
+int insert_packet(struct packet_buff* buf, int offset, char* packet, int packet_size) {
+	if(buf->packet_size != packet_size) return 0;
+	if(offset >= buf->offset && offset < buf->max_offset) {
+		int pkt_num = (offset-buf->offset) / packet_size;
+		if(buf->written_bytes[pkt_num] > 0) return 0;
+		memcpy(buf->buff + (offset-buf->offset), packet, packet_size);
+		buf->written_bytes[pkt_num] = packet_size;
+	} else {
+		if(offset > buf->max_offset) {
+			write_packets(buf);
+			// prepare new buffer
+			buf->offset = offset;
+			buf->max_offset = buf->offset + buf->buffer_size * buf->packet_size;
+		}
+	}
+	return 1;
+}
+// --------
+
 typedef struct shared_context {
 	int received_init_packet;
 	FILE *file;
 	size_t file_size;
 	mtx_t mutex;
 	size_t max_offset;
+	struct packet_buff packet_buffer;
 	int done;
 } shared_context;
 
@@ -23,8 +93,6 @@ typedef struct thread_context {
 	dev_context* dev;
 	shared_context *shared;
 } thread_context;
-
-#define MAX_FILE_SIZE 5000000000
 
 static void server_thread(struct thread_context* context);
 
@@ -64,6 +132,7 @@ int setup_server(char* devlist, int port) {
 
 	return 0;
 }
+
 
 
 static void server_thread(struct thread_context* ctx) {
@@ -133,6 +202,7 @@ static void server_thread(struct thread_context* ctx) {
 
 				shared->file_size = pkt->init.file_size;
 				shared->file = fopen(tmp, "wb");
+				shared->packet_buffer = init_packet_buff(BUFFER_SIZE, pkt->init.packet_size, shared->file);
 				shared->received_init_packet = 1;
 				shared->max_offset = 0;
 				inited = 1;
@@ -158,28 +228,12 @@ static void server_thread(struct thread_context* ctx) {
 			}
 
 			mtx_lock(&shared->mutex);
-			if(pkt->data.offset > shared->max_offset) {
-				fseek(shared->file, 0, SEEK_END);
-				int to_fill = pkt->data.offset - shared->max_offset;
-				#define FILL_BLOCK 500
-				int zeros[FILL_BLOCK];
-
-				while(to_fill > 0) {
-					int fill_size = min(to_fill, FILL_BLOCK);
-					fwrite(zeros, 1, fill_size, shared->file);
-					to_fill -= fill_size;
-				}
-				shared->max_offset = pkt->data.offset;
-				fseek(shared->file, 0, SEEK_END);
-			} else {
-				int fp = ftell(shared->file);
-				fseek(shared->file, 0, SEEK_END);
-				int fs = ftell(shared->file);
-				fseek(shared->file, pkt->data.offset, SEEK_SET);
-			}
-			fwrite(pkt->data.bytes, 1, pkt->data.size, shared->file);
-			if(pkt->data.offset == shared->max_offset)
-				shared->max_offset += pkt->data.size;
+			fseek(shared->file, pkt->data.offset, SEEK_SET);
+			// insert packet
+			insert_packet(&shared->packet_buffer, pkt->data.offset, pkt->data.bytes, pkt->data.size);
+			// fwrite(pkt->data.bytes, 1, pkt->data.size, shared->file);
+			// if(pkt->data.offset == shared->max_offset)
+				// shared->max_offset += pkt->data.size;
 
 			mtx_unlock(&shared->mutex);
 

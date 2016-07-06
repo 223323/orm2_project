@@ -27,6 +27,7 @@ typedef struct _Packet {
 			#define PACKET_INIT_HEADER_SIZE (sizeof(size_t))
 			size_t file_size;
 			char filename[100];
+			int packet_size;
 		} init;
 		struct DataPacket {
 			#define PACKET_DATA_HEADER_SIZE (sizeof(size_t)+sizeof(int))
